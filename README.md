@@ -102,9 +102,15 @@ Two rails carry identical goods:
   through an x402 facilitator.
 
 **Both rails currently run on testnets** - MPP against the Tempo testnet,
-x402 against Base Sepolia. Nothing here has taken a real payment yet. That
-is stated plainly rather than glossed over: verify the mechanics work
-before relying on either rail for anything that matters to you.
+x402 against Base Sepolia. The x402 rail's payment mechanics are proven
+end to end: on 2026-08-28 a real testnet settlement cleared against the
+live worker (the buyer client in `clients/` signed a $0.25 USDC payment,
+the facilitator settled it on Base Sepolia, and the client independently
+verified the findings hash it paid for - `7 passed, 0 failed, 0 skipped`).
+No mainnet money has moved, and MPP settlement has not yet been exercised;
+both stated plainly rather than glossed over. You can reproduce the proof
+yourself: fund a throwaway wallet with faucet USDC (no ETH needed) and run
+the buyer per "Wiring a real x402 payer" in `clients/buyer/README.md`.
 
 ## What this repository contains
 
