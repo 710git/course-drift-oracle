@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.710git/course-drift-oracle",
+  "description": "Signed drift reports for the ai-agents-for-beginners course: model pins that have retired and package floors that now resolve to a newer major version. Free summary and free signature verification; the full report is $0.25 over MPP or x402.",
+  "title": "Course Drift Oracle",
+  "version": "1.0.0",
+  "websiteUrl": "https://github.com/710git/course-drift-oracle",
+  "repository": {
+    "url": "https://github.com/710git/course-drift-oracle",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://course-drift-oracle.zachary-ferose.workers.dev/mcp"
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "pricing": {
+        "drift_summary": "free",
+        "verify_report": "free",
+        "drift_report": "$0.25 USD via MPP (Tempo testnet)",
+        "drift_report_x402": "$0.25 USD via x402 (Base Sepolia testnet)"
+      },
+      "verification": "Ed25519 signatures over RFC 8785 canonical JSON; verify_report checks any receipt for free",
+      "contact": "pm.agent.svc@gmail.com"
+    }
+  }
+}
