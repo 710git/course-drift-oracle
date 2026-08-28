@@ -9,7 +9,7 @@
 Live. See `catalog.json` for exact prices and payloads, and `README.md` in
 this directory for what is served where.
 
-MCP endpoint: `POST https://course-drift-oracle.zachary-ferose.workers.dev/mcp`,
+MCP endpoint: `POST https://signetworks.atlierx.workers.dev/mcp`,
 streamable HTTP transport.
 
 ## Tools

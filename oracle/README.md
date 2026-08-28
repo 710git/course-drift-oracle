@@ -61,11 +61,11 @@ run against the full record, not just a single receipt.
 
 ## A signing-key rotation, before anything shipped
 
-The chain visible here is not the very first one this service ever
-produced. An earlier development signing key was generated inside a
-temporary environment during the pre-launch build and was lost when that
-environment was torn down, before any report had been sold and before any
-buyer had ever seen or pinned a public key. Rather than pretend that
+This service discloses its own key-handling history rather than hiding
+it. A pre-launch development signing key was generated inside a
+temporary build environment and lost when that environment was torn
+down, before any report had been sold and before any buyer had ever
+seen or pinned a public key. Rather than pretend that
 history did not happen, it is kept as `chain.v1.jsonl` with an explanation
 in `chain.v1.NOTE.md`. The live chain (`chain.jsonl`) started fresh under a
 new key, and every report this service has actually sold was signed under

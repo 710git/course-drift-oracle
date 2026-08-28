@@ -12,8 +12,8 @@ Both are invisible in a diff. Nothing in a course repo tells you a pinned
 model is about to stop serving, or that `pip install` today pulls a package
 two majors ahead of what the lessons assume. Answering that question takes
 someone actually checking each pin against the platform's own retirement
-calendar and the package's real release history. This repo is that checking,
-done once and kept current, sold as a report.
+calendar and the package's real release history. This repository does that
+checking, continuously, and sells the result as a signed report.
 
 ## Why trust it
 
@@ -43,7 +43,7 @@ Every report is signed, not just asserted:
 The service is an MCP server over streamable HTTP:
 
 ```
-https://course-drift-oracle.zachary-ferose.workers.dev/mcp
+https://signetworks.atlierx.workers.dev/mcp
 ```
 
 Four tools:
@@ -120,8 +120,8 @@ that is needed to use or verify this service, so none of it is here.
 
 - Payments settle on testnets, not mainnet, as of this writing.
 - The model and package catalog this scanner checks against is maintained
-  by hand and covers a limited set of models today. It grows over time; it
-  is not exhaustive now.
+  by hand and covers a limited set of models today. Coverage expands every
+  cycle; it is not exhaustive yet.
 - Signature verification proves a report was produced by this service and
   has not been altered. It does not prove the report is correct - that
   claim rests on the sources cited inside each finding, which you are free

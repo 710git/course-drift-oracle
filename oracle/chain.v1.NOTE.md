@@ -3,7 +3,7 @@
 `chain.v1.jsonl` holds a single report this service signed during its
 pre-launch build (sequence 0, public key
 `kTli76HJdp7QCYOTBUT4LTotYYdW28jErmasCHmVapM`). It was never sold: no
-buyer paid for it, and no buyer had pinned this key anywhere.
+buyer paid for it, and no buyer had pinned this key at all.
 
 The Ed25519 private key behind that signature was generated inside a
 temporary build environment and was lost when that environment was torn
