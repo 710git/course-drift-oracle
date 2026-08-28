@@ -8,7 +8,7 @@
   "protocol": "Model Context Protocol (MCP)",
   "endpoint": {
     "transport": "streamable-http",
-    "url": "https://signetworks.atlierx.workers.dev/mcp"
+    "url": "https://signetworks.atelieri.workers.dev/mcp"
   },
   "tools": [
     {

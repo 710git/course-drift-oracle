@@ -43,7 +43,7 @@ Every report is signed, not just asserted:
 The service is an MCP server over streamable HTTP:
 
 ```
-https://signetworks.atlierx.workers.dev/mcp
+https://signetworks.atelieri.workers.dev/mcp
 ```
 
 Four tools:

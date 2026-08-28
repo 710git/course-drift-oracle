@@ -47,7 +47,7 @@ npm install
 Point the client at the live service:
 
 ```bash
-node src/index.mjs remote https://signetworks.atlierx.workers.dev/mcp
+node src/index.mjs remote https://signetworks.atelieri.workers.dev/mcp
 ```
 
 This client never deploys anything and never touches the service's
