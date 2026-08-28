@@ -12,10 +12,14 @@ replaced.
 Exits nonzero on the first break, naming the exact line in `chain.jsonl` that
 failed and why. Exits 0 and prints the chain length on a clean run.
 
-Kept as its own script rather than folded into the cross-language signature
-test: that test's whole point is proving Python and TypeScript agree on one
-receipt, and this check is Python-only, walking the full chain on disk. A
-standalone script keeps both scripts single-purpose.
+Wired as a step in `.github/workflows/oracle.yml` rather than into
+`cross-language-verify.mjs`: that script's own required output is the fixed
+string `ok: 5/5 checks passed` (`SPRINT.md` operating rule 4 checks for it
+literally), and its whole point is proving Python and TypeScript agree - this
+check is Python-only, so folding it in would either break that fixed check
+count or, if spawned as a subprocess from Node, address a problem that
+doesn't exist here (nothing here needs to be verified against a second
+language). A standalone script keeps both scripts single-purpose.
 
 Run:
     python verify_chain.py
@@ -47,7 +51,8 @@ def load_chain(path: Path) -> list[tuple[int, dict]]:
     return entries
 
 
-def verify(chain_path: Path, paid_path: Path | None) -> tuple[bool, str]:
+def verify(chain_path: Path, paid_path: Path | None,
+           catalog_path: Path | None = None) -> tuple[bool, str]:
     if not chain_path.exists():
         return False, f"{chain_path}: not found"
 
@@ -71,21 +76,54 @@ def verify(chain_path: Path, paid_path: Path | None) -> tuple[bool, str]:
             )
         previous_hash = receipt_hash(receipt)
 
-    last_line, last_receipt = entries[-1]
+    # Since the deprecation feed shipped, each publish appends a PAIR of
+    # receipts: the drift report's, then the catalog snapshot's. When a
+    # published catalog.json exists, the chain's last entry is therefore the
+    # catalog receipt and the report receipt sits one before it. Without a
+    # catalog.json (older layouts, partial data dirs) the last entry is the
+    # report receipt, as before.
+    catalog_receipt: tuple[int, dict] | None = None
+    report_receipt = entries[-1]
+
+    if catalog_path is not None and catalog_path.exists():
+        if len(entries) < 2:
+            return False, (
+                f"{chain_path}: a published catalog exists but the chain has "
+                "no room for a report+catalog receipt pair"
+            )
+        catalog_receipt = entries[-1]
+        report_receipt = entries[-2]
+
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        cat_line, cat_entry = catalog_receipt
+        if cat_entry.get("findings_hash") != catalog.get("receipt", {}).get("findings_hash"):
+            return False, (
+                f"{chain_path}:{cat_line}: last entry's findings_hash does "
+                f"not match {catalog_path}'s receipt - the chain and the "
+                "published catalog have diverged"
+            )
+        if sha256_canonical(catalog.get("models", [])) != cat_entry.get("findings_hash"):
+            return False, (
+                f"{catalog_path}: models array does not hash to the chain's "
+                "committed catalog findings_hash - the seller is serving a "
+                "catalog other than what was signed"
+            )
+
+    last_line, last_receipt = report_receipt
 
     if paid_path is not None and paid_path.exists():
         paid = json.loads(paid_path.read_text(encoding="utf-8"))
         if last_receipt.get("findings_hash") != paid.get("findings_hash"):
             return False, (
-                f"{chain_path}:{last_line}: last entry's findings_hash does "
-                f"not match {paid_path}'s findings_hash - the chain and the "
-                "published report have diverged"
+                f"{chain_path}:{last_line}: report receipt's findings_hash "
+                f"does not match {paid_path}'s findings_hash - the chain and "
+                "the published report have diverged"
             )
         published_hash = sha256_canonical(paid.get("findings", []))
         if published_hash != last_receipt.get("findings_hash"):
             return False, (
                 f"{paid_path}: findings array does not hash to the chain's "
-                "last committed findings_hash - the seller is serving "
+                "committed findings_hash - the seller is serving "
                 "something other than what was signed"
             )
 
@@ -101,9 +139,16 @@ def main() -> int:
         help="the currently published paid tier, checked against the chain's "
              "last entry (pass a nonexistent path to skip this check)",
     )
+    parser.add_argument(
+        "--catalog", type=Path,
+        default=here.parent / "worker" / "data" / "catalog.json",
+        help="the currently published catalog snapshot; when present the "
+             "chain's last entry must be its receipt (pass a nonexistent "
+             "path to skip)",
+    )
     args = parser.parse_args()
 
-    ok, reason = verify(args.chain, args.paid)
+    ok, reason = verify(args.chain, args.paid, args.catalog)
     print(reason if ok else reason, file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1
 

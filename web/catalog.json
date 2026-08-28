@@ -52,6 +52,30 @@
       },
       "returns": "identical goods to drift_report",
       "purpose": "discovery: the x402 Bazaar only indexes services that settle through an x402 facilitator, so this tool exists to be findable by agents holding on-chain budgets, not because the data differs"
+    },
+    {
+      "name": "model_status",
+      "price_usd": "0.00",
+      "tier": "free",
+      "payment": "none",
+      "returns": "one model id's signed catalog entry: lifecycle status, retirement date, replacement, and first-party source citation, plus the catalog snapshot's signed receipt; an id the catalog does not track returns an honest unknown, never conflated with current",
+      "purpose": "lets an agent or CI pipeline check a single pinned model at no cost"
+    },
+    {
+      "name": "model_status_batch",
+      "price_usd": "0.10",
+      "tier": "paid",
+      "payment": "MPP (Tempo testnet)",
+      "returns": "one signed catalog entry per submitted model id plus an any_action_needed boolean, true when any submitted model is deprecated or retired",
+      "purpose": "one paid call gates a CI build on every pinned model at once"
+    },
+    {
+      "name": "model_status_batch_x402",
+      "price_usd": "0.10",
+      "tier": "paid",
+      "payment": "x402/USDC (Base Sepolia testnet)",
+      "returns": "identical to model_status_batch",
+      "purpose": "the same batch lookup for buyers paying over the x402 rail"
     }
   ],
   "verification": {

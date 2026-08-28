@@ -54,6 +54,9 @@ Four tools:
 | `verify_report` | free | checks a receipt's signature and, optionally, that a findings array matches it |
 | `drift_report` | $0.25 | every finding: file, line, diagnosis, fix. Paid via MPP (Tempo testnet) |
 | `drift_report_x402` | $0.25 | the same report, paid via x402/USDC |
+| `model_status` | free | one model id in, its signed catalog entry out: current, deprecated, retired, or an honest "unknown: not in catalog" |
+| `model_status_batch` | $0.10 | a list of model ids in, one entry per id plus an `any_action_needed` gate boolean, paid via MPP (Tempo testnet) |
+| `model_status_batch_x402` | $0.10 | the same batch lookup, paid via x402/USDC |
 
 A typical run:
 

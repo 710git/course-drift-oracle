@@ -118,6 +118,53 @@ export const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
 });
 
+// ---------------------------------------------------------------------------
+// Model deprecation feed: a lookup, not a scan.
+//
+// The catalog snapshot (`catalog.json`, published by oracle/publish.py) holds
+// one signed list of model entries, each carrying `id`. `lookupModel` and
+// `lookupModels` are the pure functions both new tools share - looking a
+// caller-supplied id up against that list, honestly, including the "we do
+// not track this one" case the design memo (pm/memos/011-deprecation-feed.md,
+// §5) is explicit must never be conflated with "current".
+// ---------------------------------------------------------------------------
+
+export type CatalogEntry = {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+};
+
+export type CatalogSnapshot = {
+  models: CatalogEntry[];
+  receipt: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type ModelLookupResult =
+  | { id: string; known: true; entry: CatalogEntry }
+  | { id: string; known: false; reason: "unknown: not in catalog" };
+
+/** A model is a build-time or CI-time risk once it stops being fully current. */
+const ACTION_NEEDED_STATUSES = new Set(["deprecated", "retired"]);
+
+export function lookupModel(catalog: CatalogSnapshot, modelId: string): ModelLookupResult {
+  const entry = catalog.models.find((m) => m.id === modelId);
+  if (!entry) return { id: modelId, known: false, reason: "unknown: not in catalog" };
+  return { id: modelId, known: true, entry };
+}
+
+export function lookupModels(
+  catalog: CatalogSnapshot,
+  modelIds: string[],
+): { results: ModelLookupResult[]; anyActionNeeded: boolean } {
+  const results = modelIds.map((id) => lookupModel(catalog, id));
+  const anyActionNeeded = results.some(
+    (r) => r.known && ACTION_NEEDED_STATUSES.has(r.entry.status),
+  );
+  return { results, anyActionNeeded };
+}
+
 /**
  * Read the current report from a KV-shaped getter, falling back to the copy
  * bundled at build time.

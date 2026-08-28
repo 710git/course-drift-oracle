@@ -17,6 +17,19 @@
  *                   Free on purpose - a buyer who cannot audit the goods before
  *                   and after paying has no reason to pay a second time.
  *
+ * Plus a second, smaller product on the same infrastructure - the model
+ * deprecation feed (pm/memos/011-deprecation-feed.md). Same catalog, same
+ * signing, a different question ("is this model id alive") instead of a scan:
+ *
+ *   model_status         free.  One model id in, its catalog entry (or an
+ *                        honest "unknown: not in catalog") out, plus the
+ *                        signed catalog receipt. The taster, same role
+ *                        drift_summary plays for the drift report.
+ *   model_status_batch   paid.  A list of model ids in, one entry per id plus
+ *                        an any_action_needed boolean out. The buyer's actual
+ *                        use case: gate a build on a caller's pinned models
+ *                        without parsing an array by hand.
+ *
  * On protocol choice: this serves BOTH payment rails on the same HTTP 402
  * foundation. MPP (Machine Payments Protocol) settles cards via Stripe as well
  * as stablecoins, so buyers are not forced into crypto. x402 exists here for
@@ -34,9 +47,18 @@ import { withX402, type X402Config } from "agents/x402";
 import { Mppx, tempo, Transport } from "mppx/server";
 import { z } from "zod";
 
+import bundledCatalog from "../data/catalog.json";
 import bundledFree from "../data/free.json";
 import bundledPaid from "../data/paid.json";
-import { getReport, json, payoutGuardReason, verifyReceipt } from "./logic";
+import {
+  type CatalogSnapshot,
+  getReport,
+  json,
+  lookupModel,
+  lookupModels,
+  payoutGuardReason,
+  verifyReceipt,
+} from "./logic";
 
 type PaymentEnv = {
   MPP_SECRET_KEY: string;
@@ -66,6 +88,18 @@ type PaymentEnv = {
  * human, which is the actual design constraint on agent-facing pricing.
  */
 const REPORT_PRICE_USD = "0.25";
+
+/**
+ * Price per batch model-status query.
+ *
+ * Deliberately below REPORT_PRICE_USD: this sells one fact per id (comparable
+ * to reading a row on the provider's own deprecation page), not migration
+ * triage. The paid case is real anyway - a CI pipeline gets one signed answer
+ * across all its pinned models instead of several free single-id lookups,
+ * plus the any_action_needed boolean it actually wants to gate a build on.
+ * See pm/memos/011-deprecation-feed.md §1.2 for the full reasoning.
+ */
+const MODEL_STATUS_BATCH_PRICE_USD = "0.10";
 
 /** USDC on Tempo testnet. Swap for your production asset before charging. */
 const CURRENCY = "0x20c0000000000000000000000000000000000000";
@@ -193,6 +227,131 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
         {},
         async () =>
           json(await getReport((k) => this.env.REPORTS?.get(k, "json"), "paid", bundledPaid)),
+      );
+    }
+
+    // --- free: the deprecation feed's taster -------------------------------
+    this.server.tool(
+      "model_status",
+      "Free. Look up one model id in the signed catalog: current, " +
+        "deprecated, or retired, plus replacement, earliest_retirement, " +
+        "source, and retrieved. Returns an honest \"unknown: not in catalog\" " +
+        "for an id this catalog does not track - never conflated with " +
+        "\"current\". Includes the catalog snapshot's signed receipt.",
+      {
+        model_id: z.string().min(1).describe("the model id to look up, e.g. \"gpt-4o\""),
+      },
+      async ({ model_id }) => {
+        const catalog = await getReport(
+          (k) => this.env.REPORTS?.get(k, "json"),
+          "catalog",
+          bundledCatalog,
+        );
+        return json({
+          ...lookupModel(catalog as unknown as CatalogSnapshot, model_id),
+          receipt: catalog.receipt,
+          _source: catalog._source,
+        });
+      },
+    );
+
+    // --- paid: the deprecation feed's actual product -----------------------
+    const modelStatusBatchDescription =
+      `Paid ($${MODEL_STATUS_BATCH_PRICE_USD}). Look up a list of model ids ` +
+      "in the signed catalog and return one entry per id (or an honest " +
+      "\"unknown: not in catalog\" per id), plus any_action_needed: true if " +
+      "any input model is deprecated or retired. Built for a CI pipeline's " +
+      "pinned-model set - one signed answer and one boolean to gate a build " +
+      "on, instead of parsing an array of free lookups by hand.";
+    const modelStatusBatchSchema = {
+      model_ids: z
+        .array(z.string().min(1))
+        .min(1)
+        .describe("the model ids to look up, e.g. a CI pipeline's pinned model set"),
+    };
+
+    this.server.tool(
+      "model_status_batch",
+      modelStatusBatchDescription,
+      modelStatusBatchSchema,
+      async ({ model_ids }, extra) => {
+        const catalog = await getReport(
+          (k) => this.env.REPORTS?.get(k, "json"),
+          "catalog",
+          bundledCatalog,
+        );
+        const build = () => {
+          const { results, anyActionNeeded } = lookupModels(
+            catalog as unknown as CatalogSnapshot,
+            model_ids,
+          );
+          return {
+            results,
+            any_action_needed: anyActionNeeded,
+            receipt: catalog.receipt,
+            _source: catalog._source,
+          };
+        };
+
+        if (this.env.DISABLE_PAYMENTS === "1") {
+          return json({ ...build(), _note: "payments disabled (local test mode)" });
+        }
+
+        if (payoutGuard) {
+          return json({ error: "payments unavailable", reason: payoutGuard });
+        }
+
+        const payment = await mppx.charge({
+          amount: MODEL_STATUS_BATCH_PRICE_USD,
+          currency: CURRENCY,
+          description: "Model status batch - pinned model deprecation check",
+          recipient: this.env.PAYOUT_ADDRESS,
+        })(extra);
+
+        if (payment.status === 402) throw payment.challenge;
+
+        return payment.withReceipt(json(build()));
+      },
+    );
+
+    // --- paid: the same lookup, on the x402 rail ----------------------------
+    const modelStatusBatchX402Description =
+      `Paid ($${MODEL_STATUS_BATCH_PRICE_USD}, x402/USDC). Same batch model ` +
+      "status lookup as model_status_batch: one entry per input id plus " +
+      "any_action_needed. Pay with x402 if you hold USDC; use " +
+      "model_status_batch to pay by card or other MPP methods.";
+
+    if (payoutGuard) {
+      this.server.tool(
+        "model_status_batch_x402",
+        modelStatusBatchX402Description,
+        modelStatusBatchSchema,
+        async () => json({ error: "payments unavailable", reason: payoutGuard }),
+      );
+    } else {
+      this.server.paidTool(
+        "model_status_batch_x402",
+        modelStatusBatchX402Description,
+        Number(MODEL_STATUS_BATCH_PRICE_USD),
+        modelStatusBatchSchema,
+        {},
+        async ({ model_ids }: { model_ids: string[] }) => {
+          const catalog = await getReport(
+            (k) => this.env.REPORTS?.get(k, "json"),
+            "catalog",
+            bundledCatalog,
+          );
+          const { results, anyActionNeeded } = lookupModels(
+            catalog as unknown as CatalogSnapshot,
+            model_ids,
+          );
+          return json({
+            results,
+            any_action_needed: anyActionNeeded,
+            receipt: catalog.receipt,
+            _source: catalog._source,
+          });
+        },
       );
     }
   }
