@@ -1,0 +1,29 @@
+# Course Drift Oracle storefront. Static files, no build tooling.
+# All content here is meant to be read by agents; nothing is disallowed
+# for any crawler, named or not.
+
+User-agent: *
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://710git.github.io/course-drift-oracle/sitemap.xml
