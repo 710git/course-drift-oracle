@@ -1,0 +1,51 @@
+# Course Drift Oracle
+
+> An MCP server that scans the `ai-agents-for-beginners` course repo for model
+> pins and package-version floors that have drifted from upstream reality, and
+> sells the full findings report to agents. One free tool to check whether it
+> is worth buying, one free tool to verify what you bought, two paid tools
+> (identical goods, two payment rails) that sell the actual report.
+
+Live. See `catalog.json` for exact prices and payloads, and `README.md` in
+this directory for what is served where.
+
+MCP endpoint: `POST https://course-drift-oracle.zachary-ferose.workers.dev/mcp`,
+streamable HTTP transport.
+
+## Tools
+
+- [drift_summary](catalog.json): free. Counts and severities of drift
+  findings by lesson, plus a signed receipt. No payment required.
+- [verify_report](catalog.json): free. Verifies a receipt's Ed25519 signature
+  and, optionally, that a findings array matches the receipt's committed hash.
+- [drift_report](catalog.json): $0.25 USD, paid via MPP (Machine Payments
+  Protocol; this deployment currently charges on the Tempo testnet).
+  Every finding with file, line, diagnosis, and fix.
+- [drift_report_x402](catalog.json): $0.25 USD, paid via x402/USDC, currently
+  on Base Sepolia testnet. Identical report to drift_report; exists for
+  x402 Bazaar discoverability.
+
+## Verification
+
+- [catalog.json](catalog.json): machine-readable service catalog with full
+  verification instructions.
+- [Ed25519 + RFC 8785 canonical JSON receipts](oracle/receipt.py):
+  the signing implementation. A receipt signed here verifies against the
+  Worker's TypeScript verifier without either side trusting the other.
+
+## Source
+
+- [README.md](https://github.com/710git/course-drift-oracle/blob/main/README.md):
+  what the system does, why it charges what it charges, and its honest limits.
+- [worker/src/index.ts](https://github.com/710git/course-drift-oracle/blob/main/worker/src/index.ts):
+  the MCP server that serves these tools.
+
+## Payments
+
+Both rails currently settle on testnets, not mainnet. This is stated
+plainly in the catalog and in every tool description; nothing here hides
+that fact behind "coming soon" language.
+
+## Contact
+
+- Service contact: pm.agent.svc@gmail.com

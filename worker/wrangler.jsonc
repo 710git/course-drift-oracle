@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "course-drift-oracle",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "MCP_OBJECT", "class_name": "DriftOracleMCP" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DriftOracleMCP"] }],
+  "kv_namespaces": [
+    { "binding": "REPORTS", "id": "29ddfebdf6854effb6b6b0f40fd6f325" }
+  ],
+  "vars": {
+    // Payout address. Not a secret - it is where money arrives, not what
+    // authorizes spending it. Used by both rails: MPP and x402.
+    //
+    // TESTNET THROWAWAY: generated with viem, private key discarded. Safe for
+    // testnet challenge flows; unspendable by anyone. The worker refuses to
+    // construct mainnet challenges against this exact address (see
+    // payoutGuardReason in src/logic.ts) - replace it with an address you
+    // hold keys for before any mainnet switch.
+    "PAYOUT_ADDRESS": "0xbBA79C2D92FD6fe815602e29E81Da27aB23E705D",
+    // x402 rail. Defaults target Base Sepolia via the x402.org test
+    // facilitator. For the Bazaar to index this service, switch to mainnet
+    // ("eip155:8453") and Coinbase's CDP facilitator (requires a CDP account).
+    "X402_NETWORK": "eip155:84532",
+    "X402_FACILITATOR_URL": "https://x402.org/facilitator"
+  }
+  // MPP_SECRET_KEY is a secret, never a var:
+  //   npx wrangler secret put MPP_SECRET_KEY
+}

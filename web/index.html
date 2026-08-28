@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Course Drift Oracle</title>
+<meta name="description" content="MCP server selling a signed drift report for the ai-agents-for-beginners course. Free summary tool, two paid full-report tools (MPP and x402).">
+<meta name="robots" content="index,follow">
+<link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt">
+<link rel="alternate" type="application/json" href="./catalog.json" title="catalog.json">
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 ui-monospace, Menlo, Consolas, monospace; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+  h2 { font-size: 1.05rem; margin-top: 2rem; border-bottom: 1px solid currentColor; padding-bottom: 0.2rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+  th, td { text-align: left; border-bottom: 1px solid #8888; padding: 0.3rem 0.6rem 0.3rem 0; vertical-align: top; }
+  code { font-size: 0.95em; }
+  .status { display: inline-block; padding: 0.1rem 0.5rem; border: 1px solid currentColor; border-radius: 0.3rem; font-size: 0.85rem; }
+  .free { opacity: 0.85; }
+  footer { margin-top: 2.5rem; font-size: 0.85rem; opacity: 0.75; }
+</style>
+</head>
+<body>
+
+<h1>Course Drift Oracle</h1>
+<p class="status">live &middot; MCP over streamable HTTP at
+<code>https://course-drift-oracle.zachary-ferose.workers.dev/mcp</code>
+&middot; payments on testnets</p>
+
+<p>
+Scans the <code>ai-agents-for-beginners</code> course repo for model pins and
+package-version floors that have drifted from upstream reality, signs the
+findings, and sells the full report. Two free tools, two paid tools selling
+identical goods on two payment rails. Machine-readable catalog:
+<a href="./catalog.json">catalog.json</a>. Agent-oriented index:
+<a href="./llms.txt">llms.txt</a>.
+</p>
+
+<h2>Tools</h2>
+<table>
+<thead><tr><th>tool</th><th>price</th><th>rail</th><th>returns</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>drift_summary</code></td>
+  <td class="free">free</td>
+  <td class="free">&mdash;</td>
+  <td>finding counts by severity and lesson, plus a signed receipt</td>
+</tr>
+<tr>
+  <td><code>verify_report</code></td>
+  <td class="free">free</td>
+  <td class="free">&mdash;</td>
+  <td>checks a receipt's Ed25519 signature and findings hash</td>
+</tr>
+<tr>
+  <td><code>drift_report</code></td>
+  <td>$0.25 USD</td>
+  <td>MPP (Tempo testnet)</td>
+  <td>every finding: file, line, diagnosis, fix</td>
+</tr>
+<tr>
+  <td><code>drift_report_x402</code></td>
+  <td>$0.25 USD</td>
+  <td>x402 (USDC, Base Sepolia testnet)</td>
+  <td>identical report, for x402 Bazaar discoverability</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Why pay for this</h2>
+<p>
+Not because the bytes are scarce. Because the answer does not exist until
+someone does the work of checking each pin against the platform's own
+retirement calendar, and the free tier only tells you <em>that</em> something
+drifted, not <em>where</em>. Full argument in
+<a href="https://github.com/710git/course-drift-oracle/blob/main/README.md">the repository README</a>.
+</p>
+
+<h2>Verification</h2>
+<p>
+Both tiers commit to the same <code>findings_hash</code>, so the free summary
+is a binding claim about the paid tier's contents. Call
+<code>verify_report</code> before paying to audit the claim, and after paying
+to confirm you received everything. Signatures are Ed25519 over the SHA-256
+digest of RFC&nbsp;8785 canonical JSON; a receipt signed by the Python
+publisher (<a href="https://github.com/710git/course-drift-oracle/blob/main/oracle/receipt.py"><code>oracle/receipt.py</code></a>)
+verifies against the TypeScript Worker with no shared trust required. See
+<code>catalog.json</code> for the exact fields and file references.
+</p>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "Course Drift Oracle",
+  "description": "Signed drift report for the ai-agents-for-beginners course: model pins and package-version floors that have drifted from upstream reality.",
+  "serviceType": "MCP tool server",
+  "provider": { "@type": "Organization", "name": "Course Drift Oracle" },
+  "offers": [
+    {
+      "@type": "Offer",
+      "name": "drift_summary",
+      "price": "0.00",
+      "priceCurrency": "USD",
+      "description": "Free. Finding counts by severity and lesson, plus a signed receipt."
+    },
+    {
+      "@type": "Offer",
+      "name": "verify_report",
+      "price": "0.00",
+      "priceCurrency": "USD",
+      "description": "Free. Verifies a report receipt's Ed25519 signature and findings hash."
+    },
+    {
+      "@type": "Offer",
+      "name": "drift_report",
+      "price": "0.25",
+      "priceCurrency": "USD",
+      "description": "Every finding with file, line, diagnosis, and fix. Paid via MPP (Tempo testnet)."
+    },
+    {
+      "@type": "Offer",
+      "name": "drift_report_x402",
+      "price": "0.25",
+      "priceCurrency": "USD",
+      "description": "Same report as drift_report, paid via x402/USDC (testnet) for x402 Bazaar discoverability."
+    }
+  ]
+}
+</script>
+
+<footer>
+Source: <a href="https://github.com/710git/course-drift-oracle">github.com/710git/course-drift-oracle</a>
+&middot; layout of this directory: <a href="./README.md">README.md</a>
+</footer>
+
+</body>
+</html>

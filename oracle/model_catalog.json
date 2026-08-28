@@ -1,0 +1,148 @@
+{
+  "version": "2026-08-27",
+  "_comment": [
+    "The curated asset. Everything else in this directory is mechanical; this",
+    "file is the part a human has to keep true, and therefore the part that is",
+    "worth money. Each entry carries the first-party source it came from so a",
+    "buyer can audit the claim rather than trust it.",
+    "",
+    "Scope note that matters more than it looks: this course targets AZURE",
+    "OpenAI (see requirements.txt - azure-ai-projects, agent-framework-foundry).",
+    "Azure's retirement schedule is not OpenAI's. OpenAI retired gpt-4o from",
+    "ChatGPT on 2026-02-13 with no API change; Azure Foundry runs its own",
+    "lifecycle. Grading these pins against the wrong platform's calendar is the",
+    "single easiest way to publish a confidently wrong drift report.",
+    "",
+    "Also note the course pins models UNVERSIONED ('gpt-4o', not",
+    "'gpt-4o-2024-05-13'). Which version a learner actually gets depends on",
+    "their Foundry deployment, so severity here reflects the EARLIEST retiring",
+    "version a bare pin can resolve to. That is the conservative read and it is",
+    "the one an operator planning a migration needs."
+  ],
+  "models": {
+    "gpt-4o": {
+      "status": "deprecated",
+      "severity": "critical",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Deprecated",
+      "earliest_retirement": "2026-10-01",
+      "detail": "Azure Foundry lists gpt-4o version 2024-05-13 as Deprecated with a retirement date of 2026-10-01; versions 2024-08-06 and 2024-11-20 run to 2027-04-14. Because this pin carries no version, a deployment on 2024-05-13 stops serving on 2026-10-01 and returns hard errors. Microsoft's listed replacement is gpt-5.1.",
+      "replacement": "gpt-5.1",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-4o-mini": {
+      "status": "deprecated",
+      "severity": "warning",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Deprecated",
+      "earliest_retirement": "2027-04-14",
+      "detail": "Azure Foundry lists gpt-4o-mini version 2024-07-18 as Deprecated with a retirement date of 2027-04-14. Deprecated means no new deployments and a fixed end date, so this is a scheduled migration rather than an emergency. Microsoft lists no direct replacement; gpt-5.1 is the current GA general-purpose model.",
+      "replacement": "gpt-5.1",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-4.1": {
+      "status": "legacy",
+      "severity": "info",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Legacy",
+      "earliest_retirement": "2027-04-14",
+      "detail": "Azure Foundry lists gpt-4.1 version 2025-04-14 as Legacy with a retirement date of 2027-04-14. Legacy still accepts new deployments, so this is informational: safe to keep teaching, worth a note that it is not the current default.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-4.1-mini": {
+      "status": "legacy",
+      "severity": "info",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Legacy",
+      "earliest_retirement": "2027-04-14",
+      "detail": "Azure Foundry lists gpt-4.1-mini version 2025-04-14 as Legacy with a retirement date of 2027-04-14. Still deployable; no action required before 2027.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-4.1-nano": {
+      "status": "legacy",
+      "severity": "info",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Legacy",
+      "earliest_retirement": "2027-04-14",
+      "detail": "Azure Foundry lists gpt-4.1-nano version 2025-04-14 as Legacy with a retirement date of 2027-04-14.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-5.1": {
+      "status": "current",
+      "severity": "none",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "GA",
+      "earliest_retirement": "2027-05-15",
+      "detail": "GA on Azure Foundry and the listed replacement target for the retiring gpt-4o line.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule-gov"
+    },
+    "o3-mini": {
+      "status": "deprecated",
+      "severity": "warning",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Deprecated",
+      "earliest_retirement": "2026-10-01",
+      "detail": "Listed as Deprecated with a 2026-10-01 retirement in the Azure Government schedule, replacement gpt-5.1. Verify against the commercial-cloud schedule before acting if you are not on Gov.",
+      "replacement": "gpt-5.1",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule-gov"
+    },
+    "codex-mini": {
+      "status": "deprecated",
+      "severity": "warning",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "Deprecated",
+      "earliest_retirement": "2026-11-15",
+      "detail": "Azure Foundry lists codex-mini version 2025-05-16 as Deprecated with a retirement date of 2026-11-15. No replacement listed.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule"
+    },
+    "gpt-5": {
+      "status": "current",
+      "severity": "none",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "GA",
+      "earliest_retirement": "2027-02-09",
+      "detail": "Azure Foundry lists gpt-5 version 2025-08-07 as GA with a retirement date of 2027-02-09. No replacement listed; this is a current line, not a legacy or deprecated pin.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "retrieved": "2026-08-27"
+    },
+    "gpt-5-mini": {
+      "status": "current",
+      "severity": "none",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "GA",
+      "earliest_retirement": "2027-02-09",
+      "detail": "Azure Foundry lists gpt-5-mini version 2025-08-07 as GA with a retirement date of 2027-02-09. No replacement listed.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "retrieved": "2026-08-27"
+    },
+    "gpt-5-nano": {
+      "status": "current",
+      "severity": "none",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "GA",
+      "earliest_retirement": "2027-02-09",
+      "detail": "Azure Foundry lists gpt-5-nano version 2025-08-07 as GA with a retirement date of 2027-02-09. No replacement listed.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "retrieved": "2026-08-27"
+    },
+    "gpt-5.2": {
+      "status": "current",
+      "severity": "none",
+      "platform": "azure-openai-foundry",
+      "lifecycle": "GA",
+      "earliest_retirement": "2027-06-08",
+      "detail": "Azure Foundry lists gpt-5.2 version 2025-12-11 as GA with a retirement date of 2027-06-08. No replacement listed.",
+      "replacement": null,
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "retrieved": "2026-08-27"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "drift-oracle-buyer-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Buyer-side smoke test for the Course Drift Oracle MCP server.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
