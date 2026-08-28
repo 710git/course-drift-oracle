@@ -29,7 +29,7 @@ streamable HTTP transport.
 
 - [catalog.json](catalog.json): machine-readable service catalog with full
   verification instructions.
-- [Ed25519 + RFC 8785 canonical JSON receipts](oracle/receipt.py):
+- [Ed25519 + RFC 8785 canonical JSON receipts](https://github.com/710git/course-drift-oracle/blob/main/oracle/receipt.py):
   the signing implementation. A receipt signed here verifies against the
   Worker's TypeScript verifier without either side trusting the other.
 

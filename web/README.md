@@ -32,12 +32,13 @@ fields for the current state before relying on either rail.
 
 Everything a buyer needs to check this service's claims is public:
 
-- [`../oracle/`](../oracle/): the scanner and the signing code
-- [`../worker/`](../worker/): the MCP server, including the verification
-  logic in `logic.ts`
-- [`../clients/buyer/`](../clients/buyer/): an independent client that
-  re-implements the verification steps itself, so you do not have to take
-  the seller's word for how checking works
+- [`oracle/`](https://github.com/710git/course-drift-oracle/tree/main/oracle):
+  the scanner and the signing code
+- [`worker/`](https://github.com/710git/course-drift-oracle/tree/main/worker):
+  the MCP server, including the verification logic in `logic.ts`
+- [`clients/buyer/`](https://github.com/710git/course-drift-oracle/tree/main/clients/buyer):
+  an independent client that re-implements the verification steps itself,
+  so you do not have to take the seller's word for how checking works
 
 ## Deliberately not done here
 

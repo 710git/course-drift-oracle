@@ -1,0 +1,59 @@
+# Deploys web/ (the storefront: index.html, llms.txt, catalog.json,
+# README.md) to GitHub Pages every time it changes on main. This is the
+# only hosting step this site has - without it, web/ is bytes in the repo
+# that nothing serves.
+#
+# One-time setup this workflow cannot do for you: in this repo's Settings ->
+# Pages, set Source to "GitHub Actions". Until that click happens the first
+# run of this workflow will still succeed at building and uploading the
+# artifact, but nothing will be listening to serve it at the site URL. After
+# it is set once, every push to main touching web/** redeploys automatically
+# - no further manual steps.
+#
+# Site URL once enabled: https://710git.github.io/course-drift-oracle/
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deploy in flight at a time; a newer push wins over a queued one
+# rather than serving stale pages out of order.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload web/ as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
