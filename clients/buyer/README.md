@@ -79,8 +79,11 @@ node scripts/generate-wallet.mjs
 
 It prints an address and a private key. The key is a testnet throwaway:
 never send it real funds, never commit it, never put it in a file. Fund
-the address with Base Sepolia ETH (for gas) and Base Sepolia USDC (to pay
-with) from any public faucet, then:
+the address with Base Sepolia USDC from a public faucet such as
+https://faucet.circle.com (make sure the network selector says **Base
+Sepolia**, not another testnet). No ETH is needed: this client only signs
+an EIP-3009 payment authorization, and the facilitator that settles it
+broadcasts the transaction and pays the gas. Then:
 
 ```bash
 BUYER_PRIVATE_KEY="<the-key>" node src/index.mjs remote https://signetworks.atelieri.workers.dev/mcp
