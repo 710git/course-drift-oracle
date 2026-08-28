@@ -19,7 +19,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 
 import { sha256Canonical } from "./canonical.mjs";
-import { describeRequirements } from "./x402-handler.mjs";
+import { describeRequirements, hasPayer, payX402 } from "./x402-handler.mjs";
 
 const DEFAULT_LOCAL_URL = "http://127.0.0.1:8787/mcp";
 const EXPECTED_TOOLS = ["drift_summary", "verify_report", "drift_report", "drift_report_x402"];
@@ -162,6 +162,7 @@ async function main() {
   }
 
   // 5. drift_report_x402 - the x402 payment-required path
+  let x402Findings;
   try {
     const result = await client.callTool({ name: "drift_report_x402", arguments: {} });
     const x402Error = result?._meta?.["x402/error"];
@@ -174,14 +175,46 @@ async function main() {
         ? `x402Version=${x402Error.x402Version} error=${x402Error.error}\n${describeRequirements(requirements)}`
         : `did not get an x402 payment-required response: ${JSON.stringify(result).slice(0, 300)}`,
     );
+
+    // 5b. only runs when BUYER_PRIVATE_KEY is set - see src/x402-handler.mjs.
+    // Absent a payer, the unpaid journey above is the entire run, unchanged.
+    if (ok && hasPayer()) {
+      try {
+        const token = await payX402(requirements, x402Error);
+        const paidResult = await client.callTool({
+          name: "drift_report_x402",
+          arguments: {},
+          _meta: { "x402/payment": token },
+        });
+        const report = extractJson(paidResult);
+        const settlement = paidResult?._meta?.["x402/payment-response"];
+        const settled =
+          paidResult?.isError !== true && settlement?.success === true && Array.isArray(report?.findings);
+        if (settled) x402Findings = report.findings;
+        record(
+          "5b. drift_report_x402 payment settles",
+          settled,
+          settled
+            ? `settled: network=${settlement.network} tx=${settlement.transaction} payer=${settlement.payer}, got ${report.findings.length} findings`
+            : `payment did not settle: ${JSON.stringify(paidResult).slice(0, 500)}`,
+        );
+      } catch (err) {
+        record("5b. drift_report_x402 payment settles", false, err?.message ?? String(err));
+      }
+    }
   } catch (err) {
     record("5. drift_report_x402 requires x402 payment", false, err?.message ?? String(err));
   }
 
   // 6. verify findings_hash locally - RFC 8785 + SHA-256, reimplemented here
-  if (Array.isArray(paidFindings) && receipt?.findings_hash) {
+  // Prefers findings obtained unpaid in local test mode (step 4); falls back
+  // to findings a real x402 payer actually settled for (step 5b) so this
+  // step runs whenever either path produced them, rather than only ever the
+  // first.
+  const findingsToVerify = Array.isArray(paidFindings) ? paidFindings : x402Findings;
+  if (Array.isArray(findingsToVerify) && receipt?.findings_hash) {
     try {
-      const recomputed = await sha256Canonical(paidFindings);
+      const recomputed = await sha256Canonical(findingsToVerify);
       const ok = recomputed === receipt.findings_hash;
       record(
         "6. findings_hash verifies independently",

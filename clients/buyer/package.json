@@ -8,9 +8,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/index.mjs"
+    "start": "node src/index.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@x402/core": "^2.24.0",
+    "@x402/evm": "^2.24.0",
+    "viem": "^2.21.0"
   }
 }

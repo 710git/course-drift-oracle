@@ -6,7 +6,7 @@
 // the seller's canonicalizer has not checked anything - a seller that ships a
 // buggy or dishonest canonicalizer would pass its own check. This file is
 // written from the RFC 8785 text, independently of anything under
-// oracle/ or worker/, so it can actually catch that failure mode.
+// the oracle, so it can actually catch that failure mode.
 //
 // RFC 8785 requires: object keys sorted by UTF-16 code unit, no insignificant
 // whitespace, and numbers formatted per ECMAScript's Number::toString - which
