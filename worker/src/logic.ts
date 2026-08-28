@@ -125,8 +125,8 @@ export const json = (value: unknown) => ({
 // one signed list of model entries, each carrying `id`. `lookupModel` and
 // `lookupModels` are the pure functions both new tools share - looking a
 // caller-supplied id up against that list, honestly, including the "we do
-// not track this one" case the design memo (pm/memos/011-deprecation-feed.md,
-// §5) is explicit must never be conflated with "current".
+// not track this one" case, which by design must never be conflated with
+// "current".
 // ---------------------------------------------------------------------------
 
 export type CatalogEntry = {
@@ -146,7 +146,7 @@ export type ModelLookupResult =
   | { id: string; known: false; reason: "unknown: not in catalog" };
 
 /** A model is a build-time or CI-time risk once it stops being fully current. */
-const ACTION_NEEDED_STATUSES = new Set(["deprecated", "retired"]);
+export const ACTION_NEEDED_STATUSES = new Set(["deprecated", "retired"]);
 
 export function lookupModel(catalog: CatalogSnapshot, modelId: string): ModelLookupResult {
   const entry = catalog.models.find((m) => m.id === modelId);
@@ -245,4 +245,106 @@ export function payoutGuardReason(
     );
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// shields.io status badge.
+//
+// A different shape of "taster" than model_status: no MCP round trip, no
+// payment, just GET /badge?models=... returning shields.io's "endpoint"
+// JSON schema (https://shields.io/badges/endpoint-badge) so a README can
+// embed it directly with img.shields.io/endpoint. Built on the same
+// lookupModels used by the paid batch tool - the free badge and the paid
+// lookup agree on what "deprecated" and "unknown" mean because they share
+// the one function that decides.
+// ---------------------------------------------------------------------------
+
+/** shields.io's endpoint schema. `isError` marks a badge that is not a real
+ * status - missing/malformed input - so shields can style it distinctly
+ * without the caller having to parse the message text. */
+export type ShieldsBadge = {
+  schemaVersion: 1;
+  label: string;
+  message: string;
+  color: string;
+  isError?: true;
+};
+
+const BADGE_LABEL = "model drift";
+
+/** Past this, the badge is doing catalog work, not decorating a README. Keeps
+ * one caller from turning a free, cacheable badge into an unbounded lookup. */
+export const MAX_BADGE_MODELS = 20;
+
+/** Comma-separated model ids, trimmed and with empty entries dropped. A
+ * single id with no comma is just the one-element case of this. */
+export function parseBadgeModelIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+}
+
+/**
+ * Pure badge builder: catalog snapshot + raw `models` query param in,
+ * shields.io badge JSON out. No fetch, no KV, no Response - the route
+ * handler in index.ts owns headers and status; this owns the decision.
+ *
+ * Color/message rules (deprecated beats unknown for color, since a
+ * deprecated pin is the caller's problem and an unknown id might just be a
+ * typo or a model this catalog does not track yet):
+ *   - no models given / too many models  -> "no models given" / "too many
+ *     models", color lightgrey, isError - a 400 in badge form, since a
+ *     badge endpoint has no good way to also say "HTTP 400" to img tags.
+ *   - any model deprecated or retired    -> "<n> deprecated" (+ ", <n>
+ *     unknown" if applicable), color red.
+ *   - no deprecated but some unknown     -> "<n> unknown", color yellow.
+ *   - every model known and current      -> "current", color brightgreen.
+ */
+export function buildModelBadge(
+  catalog: CatalogSnapshot,
+  rawModels: string | null | undefined,
+): ShieldsBadge {
+  const modelIds = parseBadgeModelIds(rawModels);
+
+  if (modelIds.length === 0) {
+    return {
+      schemaVersion: 1,
+      label: BADGE_LABEL,
+      message: "no models given",
+      color: "lightgrey",
+      isError: true,
+    };
+  }
+  if (modelIds.length > MAX_BADGE_MODELS) {
+    return {
+      schemaVersion: 1,
+      label: BADGE_LABEL,
+      message: "too many models",
+      color: "lightgrey",
+      isError: true,
+    };
+  }
+
+  const { results } = lookupModels(catalog, modelIds);
+  const deprecatedCount = results.filter(
+    (r) => r.known && ACTION_NEEDED_STATUSES.has(r.entry.status),
+  ).length;
+  const unknownCount = results.filter((r) => !r.known).length;
+
+  if (deprecatedCount === 0 && unknownCount === 0) {
+    return { schemaVersion: 1, label: BADGE_LABEL, message: "current", color: "brightgreen" };
+  }
+
+  const parts: string[] = [];
+  if (deprecatedCount > 0) parts.push(`${deprecatedCount} deprecated`);
+  if (unknownCount > 0) parts.push(`${unknownCount} unknown`);
+
+  return {
+    schemaVersion: 1,
+    label: BADGE_LABEL,
+    message: parts.join(", "),
+    color: deprecatedCount > 0 ? "red" : "yellow",
+  };
 }

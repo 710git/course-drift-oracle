@@ -18,7 +18,7 @@
  *                   and after paying has no reason to pay a second time.
  *
  * Plus a second, smaller product on the same infrastructure - the model
- * deprecation feed (pm/memos/011-deprecation-feed.md). Same catalog, same
+ * deprecation feed. Same catalog, same
  * signing, a different question ("is this model id alive") instead of a scan:
  *
  *   model_status         free.  One model id in, its catalog entry (or an
@@ -29,6 +29,11 @@
  *                        an any_action_needed boolean out. The buyer's actual
  *                        use case: gate a build on a caller's pinned models
  *                        without parsing an array by hand.
+ *
+ * And a plain HTTP route alongside the MCP tools - GET /badge - so a README
+ * can wear the deprecation feed as a shields.io badge instead of calling a
+ * tool. Free, unauthenticated, cached at the edge; see the route handler
+ * below and buildModelBadge in logic.ts for the badge's own reasoning.
  *
  * On protocol choice: this serves BOTH payment rails on the same HTTP 402
  * foundation. MPP (Machine Payments Protocol) settles cards via Stripe as well
@@ -51,6 +56,7 @@ import bundledCatalog from "../data/catalog.json";
 import bundledFree from "../data/free.json";
 import bundledPaid from "../data/paid.json";
 import {
+  buildModelBadge,
   type CatalogSnapshot,
   getReport,
   json,
@@ -97,7 +103,7 @@ const REPORT_PRICE_USD = "0.25";
  * triage. The paid case is real anyway - a CI pipeline gets one signed answer
  * across all its pinned models instead of several free single-id lookups,
  * plus the any_action_needed boolean it actually wants to gate a build on.
- * See pm/memos/011-deprecation-feed.md §1.2 for the full reasoning.
+ * That trade-off is deliberate, not an accident of pricing.
  */
 const MODEL_STATUS_BATCH_PRICE_USD = "0.10";
 
@@ -357,4 +363,54 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
   }
 }
 
-export default DriftOracleMCP.serve("/mcp");
+const mcpHandler = DriftOracleMCP.serve("/mcp");
+
+/**
+ * GET /badge?models=<comma-separated ids>
+ *
+ * shields.io "endpoint" badge (https://shields.io/badges/endpoint-badge) over
+ * the same catalog model_status/model_status_batch read. Free and
+ * unauthenticated on purpose - a badge lives in a README that anonymous CI
+ * fetches on every render, and a paid or gated badge just breaks the README.
+ *
+ * Signing: unlike the MCP report/catalog receipts (signed by the offline
+ * publisher and merely *verified* here in verifyReceipt), no Ed25519 private
+ * key is available in this worker's runtime - PaymentEnv carries only
+ * MPP_SECRET_KEY (a payment credential, not a signing key), REPORTS (KV), and
+ * the payout vars. Signing the badge body would mean inventing a second key
+ * path outside the one the receipts already use, so the badge ships
+ * unsigned; its Cache-Control and the catalog's own signed receipt (available
+ * via model_status) are the integrity story instead.
+ */
+async function handleBadge(request: Request, env: PaymentEnv): Promise<Response> {
+  const url = new URL(request.url);
+  const catalog = await getReport(
+    (k) => env.REPORTS?.get(k, "json"),
+    "catalog",
+    bundledCatalog,
+  );
+  const badge = buildModelBadge(catalog as unknown as CatalogSnapshot, url.searchParams.get("models"));
+
+  return new Response(JSON.stringify(badge), {
+    headers: {
+      "content-type": "application/json",
+      // shields.io polls this on a schedule of its own; 5 minutes is short
+      // enough that a fresh deprecation shows up same-day, long enough that
+      // a popular README does not hammer KV on every page load.
+      "cache-control": "public, max-age=300",
+      // No credentials, nothing to protect - open to any origin, same as any
+      // other public badge endpoint (shields.io's own included).
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+export default {
+  async fetch(request: Request, env: PaymentEnv, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/badge") {
+      return handleBadge(request, env);
+    }
+    return mcpHandler.fetch(request, env, ctx);
+  },
+};

@@ -19,7 +19,7 @@ thinner report than advertised gets caught by arithmetic rather than by trust.
 
   catalog.json - a signed snapshot of `model_catalog.json` itself, for the
                deprecation feed (`model_status` / `model_status_batch` in the
-               Worker; see pm/memos/011-deprecation-feed.md). Same signing
+               Worker). Same signing
                machinery, same chain, a different payload: the catalog's own
                curated entries instead of a scan's findings. Published every
                run regardless of whether the catalog changed, since it is
