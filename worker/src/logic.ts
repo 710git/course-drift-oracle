@@ -151,7 +151,7 @@ export function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {
 export type AuditCheckStatus = "pass" | "warn" | "info" | "fail" | "error";
 
 export type AuditCheck = {
-  id: string; // fixed ids listed in the ticket, fixed order
+  id: string; // fixed ids in a fixed, documented order
   title: string; // short human title
   status: AuditCheckStatus;
   detail: string; // derived facts only, hard cap 300 chars, never raw body
@@ -711,5 +711,50 @@ export function buildModelBadge(
     label: BADGE_LABEL,
     message: parts.join(", "),
     color: deprecatedCount > 0 ? "red" : "yellow",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Uptime summary: pure math over the probe readings the hourly workflow
+// publishes to KV. Counts only, never a percentage: no uptime promise is
+// published, so the surface serves measurements and lets the reader
+// compute whatever window they care about.
+// ---------------------------------------------------------------------------
+
+export type UptimeReading = {
+  ts: string;
+  surfaces: Array<{ name: string; status: number; ms: number; ok: boolean; error?: string }>;
+  up: boolean;
+};
+
+export type UptimeSummary = {
+  readings: number;
+  up_readings: number;
+  first_ts: string | null;
+  last_ts: string | null;
+};
+
+/** Keep only entries shaped like probe readings; garbage in KV must never
+ * turn into garbage counts served as fact. */
+export function sanitizeUptimeReadings(raw: unknown): UptimeReading[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (r): r is UptimeReading =>
+      typeof r === "object" &&
+      r !== null &&
+      typeof (r as UptimeReading).ts === "string" &&
+      !Number.isNaN(Date.parse((r as UptimeReading).ts)) &&
+      typeof (r as UptimeReading).up === "boolean" &&
+      Array.isArray((r as UptimeReading).surfaces),
+  );
+}
+
+export function summarizeUptime(readings: UptimeReading[]): UptimeSummary {
+  const sorted = [...readings].sort((a, b) => a.ts.localeCompare(b.ts));
+  return {
+    readings: sorted.length,
+    up_readings: sorted.filter((r) => r.up).length,
+    first_ts: sorted.length > 0 ? sorted[0].ts : null,
+    last_ts: sorted.length > 0 ? sorted[sorted.length - 1].ts : null,
   };
 }

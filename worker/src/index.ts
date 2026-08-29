@@ -73,7 +73,9 @@ import {
   payoutGuardReason,
   SETTLEMENT_KV_KEY,
   type SettlementStamp,
+  sanitizeUptimeReadings,
   signAuditPayload,
+  summarizeUptime,
   verifyReceipt,
 } from "./logic";
 
@@ -759,7 +761,8 @@ facts, and twelve-check site legibility audits. Free summaries and
 verification, paid detail on two rails (MPP and x402/USDC, testnet).</p>
 <p>Free surfaces: <a href="/badge?models=gpt-4o">/badge</a>,
 <a href="/heartbeat">/heartbeat</a>, <a href="/pot">/pot</a>,
-<a href="/self-audit">/self-audit</a>, <a href="/llms.txt">/llms.txt</a>.
+<a href="/self-audit">/self-audit</a>, <a href="/uptime">/uptime</a>,
+<a href="/llms.txt">/llms.txt</a>.
 Storefront and docs:
 <a href="https://710git.github.io/course-drift-oracle/">course-drift-oracle</a>.</p>
 </body>
@@ -801,6 +804,8 @@ const LLMS_TXT = `# Course Drift Oracle
   real settlement on this worker.
 - [pot](/pot): lifetime settlement tally, one coin per cleared payment.
 - [badge](/badge?models=gpt-4o): model deprecation status as a badge.
+- [uptime](/uptime): recent readings from the hourly uptime probe,
+  counts only, measurements rather than promises.
 - [mcp advertisement](/.well-known/mcp.json): where the MCP endpoint
   lives and how to speak to it.
 
@@ -855,9 +860,60 @@ async function freeRoutes(request: Request, env: PaymentEnv): Promise<Response |
       return handleHeartbeat(env);
     case "/pot":
       return handlePot(env);
+    case "/uptime":
+      return handleUptime(env);
     default:
       return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// GET /uptime: the public face of the uptime ledger.
+//
+// An hourly probe workflow appends every reading to a git ledger (the
+// durable record) and, as a separate best-effort step, publishes the recent
+// window to KV under "uptime-recent". This route serves that window with
+// counts only: no percentage, no target, no promise. The note says why. If
+// the KV copy is missing or stale, the response says that too - the ledger
+// is the source of truth, this surface is a convenience mirror of it.
+// ---------------------------------------------------------------------------
+
+const UPTIME_KV_KEY = "uptime-recent";
+const UPTIME_NOTE =
+  "measurements, not promises: an hourly probe checks five public surfaces " +
+  "of this worker from GitHub Actions runners and records every reading, " +
+  "up or down, in an append-only git ledger. This route mirrors the recent " +
+  "window. Counts are facts; compute any percentage yourself over the " +
+  "window you care about. No SLA is offered or implied. The record opened " +
+  "2026-08-29T18:55Z.";
+
+async function handleUptime(env: PaymentEnv): Promise<Response> {
+  const respond = (body: Record<string, unknown>) =>
+    new Response(JSON.stringify({ _note: UPTIME_NOTE, ...body }), {
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "public, max-age=300",
+        "access-control-allow-origin": "*",
+      },
+    });
+
+  type StoredUptime = { updated_at?: string; readings?: unknown };
+  let stored: StoredUptime | null = null;
+  try {
+    stored = (await env.REPORTS?.get(UPTIME_KV_KEY, "json")) as StoredUptime | null;
+  } catch {
+    stored = null;
+  }
+  if (!stored || !Array.isArray(stored.readings)) {
+    return respond({ status: "no readings published to this surface yet" });
+  }
+
+  const readings = sanitizeUptimeReadings(stored.readings);
+  return respond({
+    updated_at: typeof stored.updated_at === "string" ? stored.updated_at : null,
+    summary: summarizeUptime(readings),
+    readings,
+  });
 }
 
 // ---------------------------------------------------------------------------
