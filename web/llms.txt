@@ -39,6 +39,10 @@ streamable HTTP transport.
 - `GET /badge?models=<id,id,...>`: free. Shields.io-compatible JSON badge
   endpoint reporting the worst status among the given model ids. No MCP
   round trip required, for embedding in a README or dashboard.
+- `GET /heartbeat`: free. Shields.io-compatible JSON badge reporting how
+  long ago a payment last settled on this server ("today", "N days ago").
+  Refreshed by every real sale, including a weekly automated self-purchase,
+  so it doubles as a liveness check on the payment rail itself.
 
 ## Verification
 

@@ -302,6 +302,89 @@ export function parseBadgeModelIds(raw: string | null | undefined): string[] {
  *   - no deprecated but some unknown     -> "<n> unknown", color yellow.
  *   - every model known and current      -> "current", color brightgreen.
  */
+// ---------------------------------------------------------------------------
+// Settlement heartbeat badge.
+//
+// The worker is the party that gets paid, so the worker is the honest source
+// for "when did a payment last actually clear here". Every paid tool handler
+// stamps SETTLEMENT_KV_KEY after its payment settles (an x402 paidTool
+// handler only runs post-verification; the MPP path stamps after charge()
+// returns non-402), and GET /heartbeat serves the age of that stamp as a
+// shields.io badge. The weekly automated heartbeat purchase
+// is itself an ordinary sale, so a healthy week never shows
+// older than ~7 days - and a badge drifting past that is exactly the "does
+// this paywall still settle honestly?" alarm the heartbeat exists to raise.
+// ---------------------------------------------------------------------------
+
+export const SETTLEMENT_KV_KEY = "last_settlement";
+
+export type SettlementStamp = {
+  /** ISO-8601 UTC time the payment settled (handler-side clock). */
+  ts: string;
+  /** Which tool was bought, e.g. "drift_report_x402". */
+  tool: string;
+  /** Which rail carried it. */
+  rail: "x402" | "mpp";
+};
+
+const HEARTBEAT_LABEL = "last settlement";
+
+/** One missed weekly heartbeat (7 days + a day of slack) turns the badge
+ * yellow; two turn it red. Exported so tests and docs share the numbers. */
+export const HEARTBEAT_YELLOW_DAYS = 8;
+export const HEARTBEAT_RED_DAYS = 15;
+
+/**
+ * Pure heartbeat badge builder: last settlement stamp (or null when nothing
+ * has ever settled / KV was wiped) + "now" in, shields.io badge JSON out.
+ *
+ * Color/message rules:
+ *   - no stamp                  -> "none recorded", lightgrey. True state,
+ *     not an error: a fresh deploy has no settlements yet.
+ *   - unparseable/future stamp  -> "unreadable", lightgrey, isError.
+ *     (A stamp from the future means a corrupt write, not time travel.)
+ *   - settled < 1 day ago       -> "today", brightgreen.
+ *   - 1..HEARTBEAT_YELLOW_DAYS  -> "N day(s) ago", brightgreen.
+ *   - ..HEARTBEAT_RED_DAYS      -> "N days ago", yellow (missed one beat).
+ *   - older                     -> "N days ago", red (the rail is stale).
+ */
+export function buildSettlementBadge(
+  stamp: SettlementStamp | null | undefined,
+  now: Date,
+): ShieldsBadge {
+  if (!stamp || typeof stamp.ts !== "string") {
+    return {
+      schemaVersion: 1,
+      label: HEARTBEAT_LABEL,
+      message: "none recorded",
+      color: "lightgrey",
+    };
+  }
+
+  const settled = Date.parse(stamp.ts);
+  // 60s of forward tolerance covers ordinary clock skew between the isolate
+  // that wrote the stamp and the one serving the badge.
+  if (Number.isNaN(settled) || settled > now.getTime() + 60_000) {
+    return {
+      schemaVersion: 1,
+      label: HEARTBEAT_LABEL,
+      message: "unreadable",
+      color: "lightgrey",
+      isError: true,
+    };
+  }
+
+  const days = Math.floor(Math.max(0, now.getTime() - settled) / 86_400_000);
+  if (days < 1) {
+    return { schemaVersion: 1, label: HEARTBEAT_LABEL, message: "today", color: "brightgreen" };
+  }
+
+  const message = days === 1 ? "1 day ago" : `${days} days ago`;
+  const color =
+    days <= HEARTBEAT_YELLOW_DAYS ? "brightgreen" : days <= HEARTBEAT_RED_DAYS ? "yellow" : "red";
+  return { schemaVersion: 1, label: HEARTBEAT_LABEL, message, color };
+}
+
 export function buildModelBadge(
   catalog: CatalogSnapshot,
   rawModels: string | null | undefined,

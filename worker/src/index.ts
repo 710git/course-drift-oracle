@@ -57,12 +57,15 @@ import bundledFree from "../data/free.json";
 import bundledPaid from "../data/paid.json";
 import {
   buildModelBadge,
+  buildSettlementBadge,
   type CatalogSnapshot,
   getReport,
   json,
   lookupModel,
   lookupModels,
   payoutGuardReason,
+  SETTLEMENT_KV_KEY,
+  type SettlementStamp,
   verifyReceipt,
 } from "./logic";
 
@@ -111,6 +114,28 @@ const MODEL_STATUS_BATCH_PRICE_USD = "0.10";
 const CURRENCY = "0x20c0000000000000000000000000000000000000";
 
 // ---------------------------------------------------------------------------
+
+/**
+ * Record that a payment just cleared, for GET /heartbeat. Written from every
+ * paid handler's success path: an x402 paidTool handler only runs after the
+ * facilitator verifies the buyer's signed payment (settlement completes in
+ * the same request; a settle failure fails the buyer's own run), and the MPP
+ * path stamps only after charge() returns non-402. Best-effort on purpose -
+ * bookkeeping must never break a sale, so a KV write failure is swallowed
+ * and the badge simply stays at its previous age.
+ */
+async function stampSettlement(
+  env: PaymentEnv,
+  tool: string,
+  rail: SettlementStamp["rail"],
+): Promise<void> {
+  try {
+    const stamp: SettlementStamp = { ts: new Date().toISOString(), tool, rail };
+    await env.REPORTS?.put(SETTLEMENT_KV_KEY, JSON.stringify(stamp));
+  } catch {
+    // Losing one stamp costs badge freshness, not money or goods.
+  }
+}
 
 export class DriftOracleMCP extends McpAgent<PaymentEnv> {
   server = withX402(
@@ -201,6 +226,7 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
         // credential. An agent resolves this itself; no human, no signup.
         if (payment.status === 402) throw payment.challenge;
 
+        await stampSettlement(this.env, "drift_report", "mpp");
         return payment.withReceipt(json(report));
       },
     );
@@ -231,8 +257,10 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
         Number(REPORT_PRICE_USD),
         {},
         {},
-        async () =>
-          json(await getReport((k) => this.env.REPORTS?.get(k, "json"), "paid", bundledPaid)),
+        async () => {
+          await stampSettlement(this.env, "drift_report_x402", "x402");
+          return json(await getReport((k) => this.env.REPORTS?.get(k, "json"), "paid", bundledPaid));
+        },
       );
     }
 
@@ -316,6 +344,7 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
 
         if (payment.status === 402) throw payment.challenge;
 
+        await stampSettlement(this.env, "model_status_batch", "mpp");
         return payment.withReceipt(json(build()));
       },
     );
@@ -342,6 +371,7 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
         modelStatusBatchSchema,
         {},
         async ({ model_ids }: { model_ids: string[] }) => {
+          await stampSettlement(this.env, "model_status_batch_x402", "x402");
           const catalog = await getReport(
             (k) => this.env.REPORTS?.get(k, "json"),
             "catalog",
@@ -405,11 +435,45 @@ async function handleBadge(request: Request, env: PaymentEnv): Promise<Response>
   });
 }
 
+/**
+ * GET /heartbeat
+ *
+ * shields.io "endpoint" badge answering one question: when did a payment last
+ * actually clear on this worker? Reads the SETTLEMENT_KV_KEY stamp written by
+ * the paid handlers (see stampSettlement above) - the seller's own record,
+ * refreshed by every real sale including the weekly automated heartbeat
+ * purchase, which is itself an ordinary sale. Free, unauthenticated, cached
+ * and CORS-open for the same reasons as /badge, and unsigned for the same
+ * reason too: the on-chain settlement transactions are the independently
+ * checkable record; this badge is the at-a-glance view.
+ */
+async function handleHeartbeat(env: PaymentEnv): Promise<Response> {
+  let stamp: SettlementStamp | null = null;
+  try {
+    stamp = (await env.REPORTS?.get(SETTLEMENT_KV_KEY, "json")) as SettlementStamp | null;
+  } catch {
+    // A KV read failure serves "none recorded" rather than a 500 - the badge
+    // must render in a README even when the backing store hiccups.
+  }
+  const badge = buildSettlementBadge(stamp, new Date());
+
+  return new Response(JSON.stringify(badge), {
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "public, max-age=300",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: PaymentEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/badge") {
       return handleBadge(request, env);
+    }
+    if (request.method === "GET" && url.pathname === "/heartbeat") {
+      return handleHeartbeat(env);
     }
     return mcpHandler.fetch(request, env, ctx);
   },
