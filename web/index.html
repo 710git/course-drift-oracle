@@ -99,6 +99,12 @@ serves that record as a free shields.io badge ("last settlement: N days
 ago"), so "payments work here" is a continuously renewed claim you can
 check, not a launch-day anecdote.
 </p>
+<p id="gold-pot" hidden>
+<span id="pot-coins"></span>
+&nbsp;the pot of gold: one coin per settlement ever cleared here
+(<code>GET /pot</code>). Faucet USDC, not revenue; click the coins to
+count them out loud.
+</p>
 
 <h2>Why pay for this</h2>
 <p>
@@ -224,6 +230,50 @@ Source: <a href="https://github.com/710git/course-drift-oracle">github.com/710gi
       })
       .catch(function () { /* a silent badge is fine; the egg is optional */ });
   });
+})();
+
+// The pot of gold: GET /pot reports the lifetime settlement count, and the
+// pot shows one coin per settlement. Clicking counts them out loud, one
+// ascending note per coin. Hidden entirely if the endpoint is unreachable.
+(function () {
+  var pot = document.getElementById("gold-pot");
+  var coins = document.getElementById("pot-coins");
+  if (!pot || !coins) return;
+  fetch("https://signetworks.atelieri.workers.dev/pot")
+    .then(function (r) { return r.json(); })
+    .then(function (p) {
+      var n = p && typeof p.settlements === "number" ? Math.floor(p.settlements) : 0;
+      if (n < 1 || n > 500) return;
+      for (var i = 0; i < n; i++) {
+        var c = document.createElement("span");
+        c.style.cssText = "display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:#d4a017;border:1px solid #8a6a0f;margin-right:.18rem;vertical-align:baseline";
+        coins.appendChild(c);
+      }
+      coins.style.cursor = "pointer";
+      coins.title = "count the settlements";
+      pot.hidden = false;
+      coins.addEventListener("click", function () {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var scale = [0, 2, 4, 7, 9]; // pentatonic: every settlement sounds good next to the last
+        var audible = Math.min(n, 16);
+        for (var i = 0; i < audible; i++) {
+          var t = ctx.currentTime + i * 0.14;
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = "triangle";
+          var step = scale[i % 5] + 12 * Math.floor(i / 5);
+          osc.frequency.value = 392 * Math.pow(2, step / 12);
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.35);
+        }
+        setTimeout(function () { ctx.close(); }, audible * 140 + 600);
+      });
+    })
+    .catch(function () { /* no pot today; the page stands without it */ });
 })();
 </script>
 

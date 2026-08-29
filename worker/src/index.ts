@@ -59,6 +59,7 @@ import {
   buildModelBadge,
   buildSettlementBadge,
   type CatalogSnapshot,
+  buildPot,
   getReport,
   json,
   lookupModel,
@@ -130,7 +131,27 @@ async function stampSettlement(
   rail: SettlementStamp["rail"],
 ): Promise<void> {
   try {
-    const stamp: SettlementStamp = { ts: new Date().toISOString(), tool, rail };
+    // Carry the running count forward (GET /pot renders one coin per
+    // settlement). A prior stamp without a count still proves one
+    // settlement; a torn read just restarts the count, never the badge.
+    let prior = 0;
+    try {
+      const prev = (await env.REPORTS?.get(SETTLEMENT_KV_KEY, "json")) as SettlementStamp | null;
+      if (prev && typeof prev.ts === "string") {
+        prior =
+          typeof prev.count === "number" && Number.isInteger(prev.count) && prev.count > 0
+            ? prev.count
+            : 1;
+      }
+    } catch {
+      // Unreadable prior stamp: count restarts at this settlement.
+    }
+    const stamp: SettlementStamp = {
+      ts: new Date().toISOString(),
+      tool,
+      rail,
+      count: prior + 1,
+    };
     await env.REPORTS?.put(SETTLEMENT_KV_KEY, JSON.stringify(stamp));
   } catch {
     // Losing one stamp costs badge freshness, not money or goods.
@@ -466,6 +487,31 @@ async function handleHeartbeat(env: PaymentEnv): Promise<Response> {
   });
 }
 
+/**
+ * GET /pot
+ *
+ * The pot of gold: one coin per settlement that has ever cleared on this
+ * worker, served as plain JSON for the storefront's pot rendering (and
+ * anyone else who wants a lifetime count). Same trust posture as
+ * /heartbeat: free, unauthenticated, cached, CORS-open, unsigned - the
+ * on-chain transactions are the checkable record, this is the tally.
+ */
+async function handlePot(env: PaymentEnv): Promise<Response> {
+  let stamp: SettlementStamp | null = null;
+  try {
+    stamp = (await env.REPORTS?.get(SETTLEMENT_KV_KEY, "json")) as SettlementStamp | null;
+  } catch {
+    // Serve the pre-stamp floor rather than a 500 on a KV hiccup.
+  }
+  return new Response(JSON.stringify(buildPot(stamp)), {
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "public, max-age=300",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: PaymentEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -474,6 +520,9 @@ export default {
     }
     if (request.method === "GET" && url.pathname === "/heartbeat") {
       return handleHeartbeat(env);
+    }
+    if (request.method === "GET" && url.pathname === "/pot") {
+      return handlePot(env);
     }
     return mcpHandler.fetch(request, env, ctx);
   },

@@ -325,6 +325,9 @@ export type SettlementStamp = {
   tool: string;
   /** Which rail carried it. */
   rail: "x402" | "mpp";
+  /** Running total of settlements stamped since stamping went live.
+   * Absent on stamps written before the counter existed; those count as 1. */
+  count?: number;
 };
 
 const HEARTBEAT_LABEL = "last settlement";
@@ -383,6 +386,48 @@ export function buildSettlementBadge(
   const color =
     days <= HEARTBEAT_YELLOW_DAYS ? "brightgreen" : days <= HEARTBEAT_RED_DAYS ? "yellow" : "red";
   return { schemaVersion: 1, label: HEARTBEAT_LABEL, message, color };
+}
+
+/** Settlements that cleared on-chain before the KV stamp existed, so the pot
+ * never undercounts history: two buyer-run x402 purchases on 2026-08-28 and
+ * the first fully automated self-purchase on 2026-08-29. Each is a public
+ * Base Sepolia transaction; the stamp only ever adds to this floor. */
+export const PRELAUNCH_SETTLEMENTS = 3;
+
+export type PotOfGold = {
+  /** Total settlements ever: the pre-stamp floor plus the stamped count. */
+  settlements: number;
+  /** ISO-8601 time of the most recent stamped settlement, or null. */
+  last: string | null;
+  network: string;
+  note: string;
+};
+
+/**
+ * Pure pot builder for GET /pot: one gold coin per settlement that has ever
+ * cleared on this worker. A stamp with a valid positive integer count
+ * contributes that count; a stamp without one (written before the counter
+ * existed) still proves one settlement; no stamp contributes zero. The
+ * pre-stamp floor covers history the stamp cannot know about.
+ */
+export function buildPot(stamp: SettlementStamp | null | undefined): PotOfGold {
+  let stamped = 0;
+  if (stamp && typeof stamp.ts === "string") {
+    stamped =
+      typeof stamp.count === "number" && Number.isInteger(stamp.count) && stamp.count > 0
+        ? stamp.count
+        : 1;
+  }
+  const last =
+    stamp && typeof stamp.ts === "string" && !Number.isNaN(Date.parse(stamp.ts))
+      ? stamp.ts
+      : null;
+  return {
+    settlements: PRELAUNCH_SETTLEMENTS + stamped,
+    last,
+    network: "eip155:84532",
+    note: "One coin per real settlement. Faucet USDC on Base Sepolia testnet, not revenue; the transactions are the checkable record.",
+  };
 }
 
 export function buildModelBadge(
