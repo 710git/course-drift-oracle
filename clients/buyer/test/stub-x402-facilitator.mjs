@@ -33,7 +33,7 @@
 //
 // Then point the worker at it for local testing:
 //   X402_FACILITATOR_URL = "http://127.0.0.1:4402"
-// in the worker directory's .dev.vars (see README.md).
+// in the worker's local dev secrets file (see README.md).
 
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";

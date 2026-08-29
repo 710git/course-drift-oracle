@@ -14,12 +14,12 @@ failed and why. Exits 0 and prints the chain length on a clean run.
 
 Wired as a step in `.github/workflows/oracle.yml` rather than into
 `cross-language-verify.mjs`: that script's own required output is the fixed
-string `ok: 5/5 checks passed` (`SPRINT.md` operating rule 4 checks for it
-literally), and its whole point is proving Python and TypeScript agree - this
-check is Python-only, so folding it in would either break that fixed check
-count or, if spawned as a subprocess from Node, address a problem that
-doesn't exist here (nothing here needs to be verified against a second
-language). A standalone script keeps both scripts single-purpose.
+string `ok: 5/5 checks passed` (an operating rule checks for it literally,
+callers grep for it), and its whole point is proving Python and TypeScript
+agree - this check is Python-only, so folding it in would either break that
+fixed check count or, if spawned as a subprocess from Node, address a
+problem that doesn't exist here (nothing here needs to be verified against a
+second language). A standalone script keeps both scripts single-purpose.
 
 Run:
     python verify_chain.py

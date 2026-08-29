@@ -3,12 +3,22 @@
   "service": "course-drift-oracle",
   "contact": "pm.agent.svc@gmail.com",
   "description": "Scans the ai-agents-for-beginners course repo for drifted model pins and open package-version floors, signs the findings, and sells the full report to agents.",
-  "source": "https://github.com/710git/course-drift-oracle",
-  "status": "live; payments currently settle on testnets, see the payment fields below",
+  "source": "https://github.com/710git/Project-Office/tree/main/agent-economy",
+  "status": "live since 2026-08-28 at https://signetworks.atelieri.workers.dev/mcp; x402 settlement mechanics proven 2026-08-28 (testnet)",
   "protocol": "Model Context Protocol (MCP)",
   "endpoint": {
     "transport": "streamable-http",
-    "url": "https://signetworks.atelieri.workers.dev/mcp"
+    "url": "https://signetworks.atelieri.workers.dev/mcp",
+    "path": "/mcp",
+    "note": "Served by the Cloudflare Worker at agent-economy/worker."
+  },
+  "badge": {
+    "method": "GET",
+    "url": "https://signetworks.atelieri.workers.dev/badge?models=<id,id,...>",
+    "price_usd": "0.00",
+    "tier": "free",
+    "returns": "shields.io-compatible JSON badge reporting the worst status among the given model ids",
+    "purpose": "embeddable status check that does not require an MCP round trip"
   },
   "tools": [
     {
@@ -34,8 +44,8 @@
       "payment": {
         "rail": "MPP",
         "rail_name": "Machine Payments Protocol",
-        "settlement": "Tempo testnet (protocol supports card and stablecoin)",
-        "currency": "USDC on Tempo testnet (current default; not yet mainnet)"
+        "settlement": "card (via Stripe) or stablecoin",
+        "currency": "USDC on Tempo testnet (unexercised; MPP settlement has not yet cleared a real payment)"
       },
       "returns": "every drift finding with file path, line number, diagnosis, and suggested fix",
       "purpose": "the paid tier: replaces the maintainer work of tracing each finding by hand"
@@ -47,7 +57,7 @@
       "payment": {
         "rail": "x402",
         "settlement": "USDC",
-        "network": "eip155:84532 (Base Sepolia testnet, current default; not yet mainnet)",
+        "network": "eip155:84532 (Base Sepolia testnet, proven with two real settlements 2026-08-28)",
         "facilitator": "https://x402.org/facilitator (testnet default; mainnet CDP facilitator required for x402 Bazaar indexing)"
       },
       "returns": "identical goods to drift_report",
@@ -58,24 +68,34 @@
       "price_usd": "0.00",
       "tier": "free",
       "payment": "none",
-      "returns": "one model id's signed catalog entry: lifecycle status, retirement date, replacement, and first-party source citation, plus the catalog snapshot's signed receipt; an id the catalog does not track returns an honest unknown, never conflated with current",
-      "purpose": "lets an agent or CI pipeline check a single pinned model at no cost"
+      "returns": "a single model id's catalog entry (status, dates, replacement, source) plus the signed catalog receipt, or an honest unknown: not in catalog",
+      "purpose": "lets a buyer check one pinned model before deciding whether the paid batch tool is worth it"
     },
     {
       "name": "model_status_batch",
       "price_usd": "0.10",
       "tier": "paid",
-      "payment": "MPP (Tempo testnet)",
-      "returns": "one signed catalog entry per submitted model id plus an any_action_needed boolean, true when any submitted model is deprecated or retired",
-      "purpose": "one paid call gates a CI build on every pinned model at once"
+      "payment": {
+        "rail": "MPP",
+        "rail_name": "Machine Payments Protocol",
+        "settlement": "card (via Stripe) or stablecoin",
+        "currency": "USDC on Tempo testnet (unexercised; MPP settlement has not yet cleared a real payment)"
+      },
+      "returns": "a caller's list of model ids resolved against the catalog, per-model entries plus an any_action_needed boolean gating on deprecated/retired status",
+      "purpose": "the paid tier: a CI pipeline or coding agent checks its whole set of pinned models in one call instead of one id at a time"
     },
     {
       "name": "model_status_batch_x402",
       "price_usd": "0.10",
       "tier": "paid",
-      "payment": "x402/USDC (Base Sepolia testnet)",
-      "returns": "identical to model_status_batch",
-      "purpose": "the same batch lookup for buyers paying over the x402 rail"
+      "payment": {
+        "rail": "x402",
+        "settlement": "USDC",
+        "network": "eip155:84532 (Base Sepolia testnet)",
+        "facilitator": "https://x402.org/facilitator (testnet default; mainnet CDP facilitator required for x402 Bazaar indexing)"
+      },
+      "returns": "identical goods to model_status_batch",
+      "purpose": "discovery: the x402 Bazaar only indexes services that settle through an x402 facilitator, so this tool exists to be findable by agents holding on-chain budgets, not because the data differs"
     }
   ],
   "verification": {
@@ -96,20 +116,20 @@
     "findings_hash": "sha256 of the canonical findings array; both the free and paid tiers commit to the same hash, so the free summary is a binding claim about what the paid tier contains",
     "how_to_verify": "call verify_report with the receipt object from any response, and optionally the findings array from a paid response, to check the signature and the findings_hash match locally, no trust in the seller required",
     "implementations_checked": [
-      "oracle/receipt.py (Python, signs)",
-      "worker/src/index.ts and worker/src/logic.ts (TypeScript, verifies)",
-      "clients/buyer (an independent buyer client that re-implements the verification steps itself and treats the server as untrusted)"
+      "agent-economy/oracle/receipt.py (Python, signs)",
+      "agent-economy/worker/src/index.ts (TypeScript, verifies)",
+      "agent-economy/tests/cross-language-verify.mjs (proves both agree, and that a tampered receipt or a short-changed findings array is rejected)"
     ]
   },
   "last_scan": {
-    "repo": "microsoft/ai-agents-for-beginners",
-    "commit": "7b20684e56ae3e565d0568bb13de06912d4d19bc",
-    "generated": "2026-08-28T02:39:45Z",
-    "findings_count": 38,
+    "repo": "710git/ai-agents-for-beginners",
+    "commit": "3ccbaa9029aede34dbcd0933dd96cf23521703fa",
+    "generated": "2026-08-27T15:45:14Z",
+    "findings_count": 93,
     "severity_counts": {
-      "critical": 3,
-      "warning": 18,
-      "info": 17
+      "critical": 14,
+      "warning": 61,
+      "info": 18
     }
   }
 }

@@ -1,14 +1,16 @@
 # web/
 
 The agent-facing storefront for the Course Drift Oracle. Static files, no
-build step, no external requests. This is the content that is served
-alongside the live MCP endpoint.
+build step, no external requests. The MCP server they describe is live at
+`https://signetworks.atelieri.workers.dev/mcp` since 2026-08-28; the
+storefront itself is served separately at
+`https://710git.github.io/course-drift-oracle/`.
 
-## What is served where
+## What goes where
 
-The Worker serves the MCP endpoint at `/mcp`. These static files are served
-from the same origin (or from GitHub Pages, or any static host pointed at
-this directory):
+The Worker in `agent-economy/worker` serves the MCP endpoint at `/mcp` and
+the free `/badge` endpoint. These static files are served from the GitHub
+Pages storefront:
 
 | File | URL | Audience |
 |---|---|---|
@@ -17,33 +19,29 @@ this directory):
 | `catalog.json` | `/catalog.json` | the machine-readable source of truth: tool names, prices, rails, verification instructions |
 
 All three describe the same catalog. `catalog.json` is authoritative;
-`index.html` and `llms.txt` restate it in the two formats agents are
-documented to read today. If the catalog changes, `catalog.json` is edited
-first and the other two are brought in line with it.
+`index.html` and `llms.txt` restate it in the two formats agents are actually
+documented to read today (see `RESEARCH.md`). If the catalog changes, edit
+`catalog.json` first and bring the other two in line with it, the same way
+`agent-economy/worker/push-to-kv.sh` refuses to publish a free/paid tier
+mismatch.
 
-## Payments
+## Why not a fixed `/.well-known/` manifest for x402
 
-Both payment rails currently settle on testnets: MPP against Tempo, x402
-against Base Sepolia. Every file in this directory says so plainly rather
-than implying real settlement. Check `catalog.json`'s `status` and payment
-fields for the current state before relying on either rail.
-
-## Verify before you buy
-
-Everything a buyer needs to check this service's claims is public:
-
-- [`oracle/`](https://github.com/710git/course-drift-oracle/tree/main/oracle):
-  the scanner and the signing code
-- [`worker/`](https://github.com/710git/course-drift-oracle/tree/main/worker):
-  the MCP server, including the verification logic in `logic.ts`
-- [`clients/buyer/`](https://github.com/710git/course-drift-oracle/tree/main/clients/buyer):
-  an independent client that re-implements the verification steps itself,
-  so you do not have to take the seller's word for how checking works
+Because there isn't one to write to. This session's research
+(`RESEARCH.md`) found that x402 Bazaar discovery is reactive: a service
+becomes listed by settling a real payment through a Bazaar-participating
+facilitator, not by publishing a file at a well-known path. `catalog.json`
+still documents the x402 tool and its price, because an agent reading the
+catalog directly benefits from that even though the Bazaar itself won't.
 
 ## Deliberately not done here
 
+- No worker deployment steps here. `wrangler deploy`, live Cloudflare state,
+  and any secret stay out of scope for this directory; see
+  `agent-economy/README.md` for how the Worker itself is deployed and run.
+- No WebMCP (`document.modelContext`) integration. Per `RESEARCH.md`, it is
+  origin-trial-only in Chrome and Edge and unimplemented in Firefox and
+  Safari, so it is not a reliable path today. `index.html` stays plain HTML
+  with JSON-LD rather than registering live tools.
 - No external requests of any kind: no CDN scripts, no web fonts, no
   analytics, no tracking pixels. Every file here is self-contained.
-- No WebMCP (`document.modelContext`) integration; `index.html` stays plain
-  HTML with JSON-LD, which works reliably across browsers and crawlers
-  today.

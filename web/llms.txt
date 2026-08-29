@@ -6,8 +6,10 @@
 > is worth buying, one free tool to verify what you bought, two paid tools
 > (identical goods, two payment rails) that sell the actual report.
 
-Live. See `catalog.json` for exact prices and payloads, and `README.md` in
-this directory for what is served where.
+Live since 2026-08-28 at `https://signetworks.atelieri.workers.dev/mcp`. This
+file describes the built and tested system; see `catalog.json` for exact
+prices and payloads, and `README.md` in this directory for what is served
+where.
 
 MCP endpoint: `POST https://signetworks.atelieri.workers.dev/mcp`,
 streamable HTTP transport.
@@ -18,33 +20,40 @@ streamable HTTP transport.
   findings by lesson, plus a signed receipt. No payment required.
 - [verify_report](catalog.json): free. Verifies a receipt's Ed25519 signature
   and, optionally, that a findings array matches the receipt's committed hash.
+- [model_status](catalog.json): free. Looks up a single model id in the
+  signed model catalog and returns its status, dates, and replacement.
 - [drift_report](catalog.json): $0.25 USD, paid via MPP (Machine Payments
-  Protocol; this deployment currently charges on the Tempo testnet).
-  Every finding with file, line, diagnosis, and fix.
-- [drift_report_x402](catalog.json): $0.25 USD, paid via x402/USDC, currently
-  on Base Sepolia testnet. Identical report to drift_report; exists for
-  x402 Bazaar discoverability.
+  Protocol; settles by card or stablecoin, testnet). Every finding with
+  file, line, diagnosis, and fix.
+- [drift_report_x402](catalog.json): $0.25 USD, paid via x402/USDC on Base
+  Sepolia (testnet). Identical report to drift_report; exists for x402
+  Bazaar discoverability.
+- [model_status_batch](catalog.json): $0.10 USD, paid via MPP (testnet).
+  A caller's list of model ids in, per-model entries plus an
+  `any_action_needed` boolean out.
+- [model_status_batch_x402](catalog.json): $0.10 USD, paid via x402/USDC on
+  Base Sepolia (testnet). Identical goods to model_status_batch.
+
+## Badge
+
+- `GET /badge?models=<id,id,...>`: free. Shields.io-compatible JSON badge
+  endpoint reporting the worst status among the given model ids. No MCP
+  round trip required, for embedding in a README or dashboard.
 
 ## Verification
 
 - [catalog.json](catalog.json): machine-readable service catalog with full
   verification instructions.
-- [Ed25519 + RFC 8785 canonical JSON receipts](https://github.com/710git/course-drift-oracle/blob/main/oracle/receipt.py):
+- [Ed25519 + RFC 8785 canonical JSON receipts](../agent-economy/oracle/receipt.py):
   the signing implementation. A receipt signed here verifies against the
   Worker's TypeScript verifier without either side trusting the other.
 
 ## Source
 
-- [README.md](https://github.com/710git/course-drift-oracle/blob/main/README.md):
-  what the system does, why it charges what it charges, and its honest limits.
-- [worker/src/index.ts](https://github.com/710git/course-drift-oracle/blob/main/worker/src/index.ts):
+- [agent-economy/README.md](../agent-economy/README.md): what the system does,
+  why it charges what it charges, and its honest limits.
+- [agent-economy/worker/src/index.ts](../agent-economy/worker/src/index.ts):
   the MCP server that serves these tools.
-
-## Payments
-
-Both rails currently settle on testnets, not mainnet. This is stated
-plainly in the catalog and in every tool description; nothing here hides
-that fact behind "coming soon" language.
 
 ## Contact
 

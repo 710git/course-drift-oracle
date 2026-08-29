@@ -5,13 +5,8 @@
 <title>Course Drift Oracle</title>
 <meta name="description" content="MCP server selling a signed drift report for the ai-agents-for-beginners course. Free summary tool, two paid full-report tools (MPP and x402).">
 <meta name="robots" content="index,follow">
-<link rel="canonical" href="https://710git.github.io/course-drift-oracle/">
 <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt">
 <link rel="alternate" type="application/json" href="./catalog.json" title="catalog.json">
-<meta property="og:title" content="Course Drift Oracle">
-<meta property="og:description" content="MCP server selling a signed drift report for the ai-agents-for-beginners course. Free summary tool, two paid full-report tools (MPP and x402).">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://710git.github.io/course-drift-oracle/">
 <style>
   :root { color-scheme: light dark; }
   body { font: 15px/1.5 ui-monospace, Menlo, Consolas, monospace; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
@@ -28,9 +23,7 @@
 <body>
 
 <h1>Course Drift Oracle</h1>
-<p class="status">live &middot; MCP over streamable HTTP at
-<code>https://signetworks.atelieri.workers.dev/mcp</code>
-&middot; payments on testnets</p>
+<p class="status">live since 2026-08-28 &middot; MCP over streamable HTTP at <code>https://signetworks.atelieri.workers.dev/mcp</code></p>
 
 <p>
 Scans the <code>ai-agents-for-beginners</code> course repo for model pins and
@@ -59,18 +52,42 @@ identical goods on two payment rails. Machine-readable catalog:
 </tr>
 <tr>
   <td><code>drift_report</code></td>
-  <td>$0.25 (USDC)</td>
-  <td>MPP (Tempo testnet)</td>
+  <td>$0.25 USD</td>
+  <td>MPP (card or stablecoin)</td>
   <td>every finding: file, line, diagnosis, fix</td>
 </tr>
 <tr>
   <td><code>drift_report_x402</code></td>
-  <td>$0.25 (USDC)</td>
-  <td>x402 (USDC, Base Sepolia testnet)</td>
+  <td>$0.25 USD</td>
+  <td>x402 (USDC)</td>
   <td>identical report, for x402 Bazaar discoverability</td>
+</tr>
+<tr>
+  <td><code>model_status</code></td>
+  <td class="free">free</td>
+  <td class="free">&mdash;</td>
+  <td>one model id's catalog entry (or an honest "unknown"), plus the signed catalog receipt</td>
+</tr>
+<tr>
+  <td><code>model_status_batch</code></td>
+  <td>$0.10 USD</td>
+  <td>MPP (card or stablecoin)</td>
+  <td>one signed answer across all pinned models, with an any_action_needed gate boolean</td>
+</tr>
+<tr>
+  <td><code>model_status_batch_x402</code></td>
+  <td>$0.10 USD</td>
+  <td>x402 (USDC)</td>
+  <td>identical batch answer, paid via x402</td>
 </tr>
 </tbody>
 </table>
+
+<p>
+There is also a free HTTP badge: <code>GET /badge?models=&lt;ids&gt;</code>
+returns shields.io endpoint JSON from the same catalog lookup the paid batch
+tool uses, so a README can wear its model-drift status in one line.
+</p>
 
 <h2>Why pay for this</h2>
 <p>
@@ -78,7 +95,7 @@ Not because the bytes are scarce. Because the answer does not exist until
 someone does the work of checking each pin against the platform's own
 retirement calendar, and the free tier only tells you <em>that</em> something
 drifted, not <em>where</em>. Full argument in
-<a href="https://github.com/710git/course-drift-oracle/blob/main/README.md">the repository README</a>.
+<a href="https://github.com/710git/course-drift-oracle#readme">the repository README</a>.
 </p>
 
 <h2>Verification</h2>
@@ -88,9 +105,9 @@ is a binding claim about the paid tier's contents. Call
 <code>verify_report</code> before paying to audit the claim, and after paying
 to confirm you received everything. Signatures are Ed25519 over the SHA-256
 digest of RFC&nbsp;8785 canonical JSON; a receipt signed by the Python
-publisher (<a href="https://github.com/710git/course-drift-oracle/blob/main/oracle/receipt.py"><code>oracle/receipt.py</code></a>)
-verifies against the TypeScript Worker with no shared trust required. See
-<code>catalog.json</code> for the exact fields and file references.
+publisher (<code>oracle/receipt.py</code>) verifies against the TypeScript
+Worker with no shared trust required. See <code>catalog.json</code> for the
+exact fields and file references.
 </p>
 
 <script type="application/ld+json">
@@ -100,7 +117,6 @@ verifies against the TypeScript Worker with no shared trust required. See
   "name": "Course Drift Oracle",
   "description": "Signed drift report for the ai-agents-for-beginners course: model pins and package-version floors that have drifted from upstream reality.",
   "serviceType": "MCP tool server",
-  "url": "https://signetworks.atelieri.workers.dev/mcp",
   "provider": { "@type": "Organization", "name": "Course Drift Oracle" },
   "offers": [
     {
@@ -122,14 +138,35 @@ verifies against the TypeScript Worker with no shared trust required. See
       "name": "drift_report",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "Every finding with file, line, diagnosis, and fix. Paid via MPP (Tempo testnet)."
+      "description": "Every finding with file, line, diagnosis, and fix. Paid via MPP (card or stablecoin)."
     },
     {
       "@type": "Offer",
       "name": "drift_report_x402",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "Same report as drift_report, paid via x402/USDC (testnet) for x402 Bazaar discoverability."
+      "description": "Same report as drift_report, paid via x402/USDC for x402 Bazaar discoverability."
+    },
+    {
+      "@type": "Offer",
+      "name": "model_status",
+      "price": "0.00",
+      "priceCurrency": "USD",
+      "description": "Free. One model id's catalog entry, or an honest unknown, plus the signed catalog receipt."
+    },
+    {
+      "@type": "Offer",
+      "name": "model_status_batch",
+      "price": "0.10",
+      "priceCurrency": "USD",
+      "description": "One signed answer across all pinned models with an any_action_needed gate boolean. Paid via MPP."
+    },
+    {
+      "@type": "Offer",
+      "name": "model_status_batch_x402",
+      "price": "0.10",
+      "priceCurrency": "USD",
+      "description": "Same batch answer as model_status_batch, paid via x402/USDC."
     }
   ]
 }

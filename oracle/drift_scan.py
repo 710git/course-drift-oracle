@@ -65,7 +65,11 @@ SCANNED_SUFFIXES = {".ipynb", ".py", ".md"}
 # the course uses all three and missing any one of them makes the report a lie
 # by omission - the env-var form in particular is how lessons actually name a
 # Foundry deployment.
-MODEL_ID = r"(?:gpt|o|claude|gemini|llama|mistral|phi)-[A-Za-z0-9._-]+"
+# Two shapes of model id: hyphenated families (gpt-4o, claude-*, phi-4) and
+# OpenAI's bare o-series (o1, o3-mini, o4-mini), which has no hyphen after
+# the "o" - the old single alternation `(?:...|o|...)-` could never match
+# those, leaving o-series catalog entries inert against the scanner.
+MODEL_ID = r"(?:(?:gpt|claude|gemini|llama|mistral|phi)-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)"
 MODEL_PATTERNS = (
     re.compile(rf"""["']({MODEL_ID})["']"""),          # "gpt-4o" / 'gpt-4o'
     re.compile(rf"`({MODEL_ID})`"),                     # `gpt-4o` in markdown
