@@ -91,6 +91,18 @@ black box - the two files that do the actual work are short and readable:
 links correctly to the one before it - the check a buyer or an outside
 auditor would run against the whole record, not just one receipt.
 
+## A free, signed skill
+
+`skills/course-drift-check/SKILL.md` is the correct procedure for using
+this oracle, written for agents: audit the seller before paying, pay on
+either rail, verify the goods after. It is free, and it is signed - the
+`receipt.json` beside it commits to the file's exact SHA-256 under the
+same Ed25519 key that signs every report, so an agent loading the skill
+can prove it is running the procedure the operators published, unaltered
+(`oracle/sign_skill.py` is the 100-line signer; verification needs
+nothing from us). Signature proves provenance and integrity, not
+correctness - the same boundary every receipt here draws.
+
 ## Payments
 
 Two rails carry identical goods:

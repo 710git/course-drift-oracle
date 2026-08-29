@@ -44,19 +44,27 @@ streamable HTTP transport.
   Refreshed by every real sale, including a weekly automated self-purchase,
   so it doubles as a liveness check on the payment rail itself.
 
+## Free signed skill
+
+- [skills/course-drift-check/SKILL.md](https://github.com/710git/course-drift-oracle/blob/main/skills/course-drift-check/SKILL.md):
+  the correct agent procedure for using this oracle (audit before paying,
+  verify after), signed by the same Ed25519 key that signs reports. The
+  receipt.json beside it commits to the file's SHA-256; verify with the
+  free verify_report tool.
+
 ## Verification
 
 - [catalog.json](catalog.json): machine-readable service catalog with full
   verification instructions.
-- [Ed25519 + RFC 8785 canonical JSON receipts](../agent-economy/oracle/receipt.py):
+- [Ed25519 + RFC 8785 canonical JSON receipts](https://github.com/710git/course-drift-oracle/blob/main/oracle/receipt.py):
   the signing implementation. A receipt signed here verifies against the
   Worker's TypeScript verifier without either side trusting the other.
 
 ## Source
 
-- [agent-economy/README.md](../agent-economy/README.md): what the system does,
+- [README.md](https://github.com/710git/course-drift-oracle/blob/main/README.md): what the system does,
   why it charges what it charges, and its honest limits.
-- [agent-economy/worker/src/index.ts](../agent-economy/worker/src/index.ts):
+- [worker/src/index.ts](https://github.com/710git/course-drift-oracle/blob/main/worker/src/index.ts):
   the MCP server that serves these tools.
 
 ## Contact

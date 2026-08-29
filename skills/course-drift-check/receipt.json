@@ -1,0 +1,13 @@
+{
+  "publisher": "course-drift-oracle",
+  "signature": {
+    "alg": "EdDSA",
+    "public_key": "C-FzD6a8QDShF2oejGoZ25GKrt-F17CKgnMbklSz-R0",
+    "sig": "PXVtwlY-tgE-pP40c-Sqo0kW7BBkcDEslmPMOcx8Q4yyFeCXATvj3JLRI8hnG0985T8z4MeZqEI9n_cRMNwABQ"
+  },
+  "skill": "agent-economy/skills/course-drift-check/SKILL.md",
+  "skill_bytes": 5305,
+  "skill_sha256": "sha256:4961ba73520499fcc35b27ef0902ea4b5cdad1ddee404db8e31b8bbe122521b0",
+  "timestamp": "2026-08-29T06:36:34Z",
+  "type": "course.skill.v1"
+}
