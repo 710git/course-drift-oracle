@@ -80,6 +80,24 @@ identical goods on two payment rails. Machine-readable catalog:
   <td>x402 (USDC)</td>
   <td>identical batch answer, paid via x402</td>
 </tr>
+<tr>
+  <td><code>site_audit_summary</code></td>
+  <td class="free">free</td>
+  <td class="free">&mdash;</td>
+  <td>"N of 12 checks passed" for a submitted site URL, plus target and date</td>
+</tr>
+<tr>
+  <td><code>site_audit</code></td>
+  <td>$0.25 USD</td>
+  <td>MPP (card or stablecoin)</td>
+  <td>all 12 checks with per-check status and detail, as a signed dated receipt</td>
+</tr>
+<tr>
+  <td><code>site_audit_x402</code></td>
+  <td>$0.25 USD</td>
+  <td>x402 (USDC)</td>
+  <td>identical report, paid via x402</td>
+</tr>
 </tbody>
 </table>
 
@@ -104,6 +122,27 @@ check, not a launch-day anecdote.
 &nbsp;the pot of gold: one coin per settlement ever cleared here
 (<code>GET /pot</code>). Faucet USDC, not revenue; click the coins to
 count them out loud.
+</p>
+
+<h2>Site audit</h2>
+<p>
+A buyer submits a site URL. The worker makes a small, fixed set of bounded
+fetches against that origin (at most 10, against well-known paths, response
+sizes capped, private and internal addresses refused, rate-limited per
+target) and checks whether the site is legible to AI agents: robots.txt for
+named AI crawlers, llms.txt presence and shape, MCP advertisement,
+structured data, meta and charset sanity, content-type sanity, and whether
+the homepage responds without JS rendering. Twelve checks total, run once,
+scored where a check has a right answer and reported as fact where it does
+not. Free summary tells you how many of 12 passed; the paid tier returns
+every check with its status and detail, signed live with a dedicated Ed25519
+audit key kept separate from the report chain key. The signature proves
+what was checked, when, and that the report was not altered afterward; it
+does not prove the site is good, and it does not prove the 12 checks are
+exhaustive. If the audit key is not yet provisioned, the tools still run and
+return an explicitly unsigned report that says so. Same logic as the drift
+report: not information nobody else has, information nobody can quietly
+edit afterward.
 </p>
 
 <h2>Why pay for this</h2>
@@ -184,6 +223,27 @@ exact fields and file references.
       "price": "0.10",
       "priceCurrency": "USD",
       "description": "Same batch answer as model_status_batch, paid via x402/USDC."
+    },
+    {
+      "@type": "Offer",
+      "name": "site_audit_summary",
+      "price": "0.00",
+      "priceCurrency": "USD",
+      "description": "Free. N of 12 checks passed for a submitted site URL, plus target and date."
+    },
+    {
+      "@type": "Offer",
+      "name": "site_audit",
+      "price": "0.25",
+      "priceCurrency": "USD",
+      "description": "All 12 agent-legibility checks with per-check status and detail, as a signed dated receipt. Paid via MPP (card or stablecoin)."
+    },
+    {
+      "@type": "Offer",
+      "name": "site_audit_x402",
+      "price": "0.25",
+      "priceCurrency": "USD",
+      "description": "Same report as site_audit, paid via x402/USDC."
     }
   ]
 }

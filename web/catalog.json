@@ -3,7 +3,7 @@
   "service": "course-drift-oracle",
   "contact": "pm.agent.svc@gmail.com",
   "description": "Scans the ai-agents-for-beginners course repo for drifted model pins and open package-version floors, signs the findings, and sells the full report to agents.",
-  "source": "https://github.com/710git/Project-Office/tree/main/agent-economy",
+  "source": "https://github.com/710git/course-drift-oracle",
   "status": "live since 2026-08-28 at https://signetworks.atelieri.workers.dev/mcp; x402 settlement mechanics proven 2026-08-28 (testnet)",
   "protocol": "Model Context Protocol (MCP)",
   "endpoint": {
@@ -95,6 +95,40 @@
         "facilitator": "https://x402.org/facilitator (testnet default; mainnet CDP facilitator required for x402 Bazaar indexing)"
       },
       "returns": "identical goods to model_status_batch",
+      "purpose": "discovery: the x402 Bazaar only indexes services that settle through an x402 facilitator, so this tool exists to be findable by agents holding on-chain budgets, not because the data differs"
+    },
+    {
+      "name": "site_audit_summary",
+      "price_usd": "0.00",
+      "tier": "free",
+      "payment": "none",
+      "returns": "\"N of 12 checks passed\" for a submitted site URL, plus target and date",
+      "purpose": "lets a buyer decide whether the paid full audit is worth it, at no cost"
+    },
+    {
+      "name": "site_audit",
+      "price_usd": "0.25",
+      "tier": "paid",
+      "payment": {
+        "rail": "MPP",
+        "rail_name": "Machine Payments Protocol",
+        "settlement": "card (via Stripe) or stablecoin",
+        "currency": "USDC on Tempo testnet (unexercised; MPP settlement has not yet cleared a real payment)"
+      },
+      "returns": "all 12 agent-legibility checks for a submitted site URL, each with status and detail, as a signed dated receipt",
+      "purpose": "the paid tier: full per-check detail behind a signed, dated attestation of what was checked and when"
+    },
+    {
+      "name": "site_audit_x402",
+      "price_usd": "0.25",
+      "tier": "paid",
+      "payment": {
+        "rail": "x402",
+        "settlement": "USDC",
+        "network": "eip155:84532 (Base Sepolia testnet)",
+        "facilitator": "https://x402.org/facilitator (testnet default; mainnet CDP facilitator required for x402 Bazaar indexing)"
+      },
+      "returns": "identical goods to site_audit",
       "purpose": "discovery: the x402 Bazaar only indexes services that settle through an x402 facilitator, so this tool exists to be findable by agents holding on-chain budgets, not because the data differs"
     }
   ],

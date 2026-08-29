@@ -55,18 +55,23 @@ import { z } from "zod";
 import bundledCatalog from "../data/catalog.json";
 import bundledFree from "../data/free.json";
 import bundledPaid from "../data/paid.json";
+import { realFetcher, runAudit, validateTargetUrl } from "./audit";
 import {
+  type AuditSignature,
+  buildAuditReceipt,
   buildModelBadge,
   buildSettlementBadge,
   type CatalogSnapshot,
   buildPot,
   getReport,
+  importAuditSigningKey,
   json,
   lookupModel,
   lookupModels,
   payoutGuardReason,
   SETTLEMENT_KV_KEY,
   type SettlementStamp,
+  signAuditPayload,
   verifyReceipt,
 } from "./logic";
 
@@ -85,6 +90,13 @@ type PaymentEnv = {
   REPORTS: KVNamespace;
   /** "1" keeps the paid tool open - for local testing only. */
   DISABLE_PAYMENTS?: string;
+  /**
+   * Ed25519 seed (base64url, 32 bytes) for signing site audits live at the
+   * edge. Deliberately a separate key from the oracle report chain: that key
+   * stays CI-only and never touches a live request. Optional on purpose -
+   * absent, the audit tools serve honestly unsigned reports that say so.
+   */
+  AUDIT_SIGNING_KEY?: string;
 };
 
 /**
@@ -156,6 +168,97 @@ async function stampSettlement(
   } catch {
     // Losing one stamp costs badge freshness, not money or goods.
   }
+}
+
+/**
+ * Price per site audit. Same reasoning as REPORT_PRICE_USD: the buyer is not
+ * paying for the bytes, they are paying for a dated, third-party-signed
+ * attestation they can hand to someone else.
+ */
+const AUDIT_PRICE_USD = "0.25";
+
+/** Audits allowed per target hostname per window. Coarse on purpose. */
+const AUDIT_RATE_LIMIT = 6;
+const AUDIT_RATE_WINDOW_SECS = 600;
+
+/**
+ * Per-target rate limit: nothing may use this worker to
+ * generate load against a third party's server, paid or not, so the limit is
+ * keyed by the TARGET's hostname, not by the buyer. Fails closed - a broken
+ * limiter refuses the audit rather than skipping the limit. KV's eventual
+ * consistency makes this a coarse limit, which is all it needs to be: the
+ * hard per-audit fetch cap bounds each individual call regardless.
+ */
+async function auditRateLimitReason(
+  env: PaymentEnv,
+  origin: string,
+  increment: boolean,
+): Promise<string | null> {
+  const key = `audit-rl:${new URL(origin).hostname}`;
+  try {
+    const prior = (await env.REPORTS.get(key, "json")) as { count?: number } | null;
+    const count =
+      prior && typeof prior.count === "number" && Number.isInteger(prior.count) && prior.count > 0
+        ? prior.count
+        : 0;
+    if (count >= AUDIT_RATE_LIMIT) {
+      return (
+        `rate limited: at most ${AUDIT_RATE_LIMIT} audits of one host per ` +
+        `${AUDIT_RATE_WINDOW_SECS / 60} minutes; try again later`
+      );
+    }
+    if (increment) {
+      await env.REPORTS.put(key, JSON.stringify({ count: count + 1 }), {
+        expirationTtl: AUDIT_RATE_WINDOW_SECS,
+      });
+    }
+    return null;
+  } catch {
+    return "rate limiter unavailable; refusing the audit rather than skipping the limit";
+  }
+}
+
+/**
+ * One imported key per isolate, re-imported only if the secret rotates.
+ * Import failure is remembered as null so a malformed secret degrades to
+ * honest unsigned receipts instead of failing every audit.
+ */
+let auditKeyCache: { seed: string; key: Promise<CryptoKey | null> } | null = null;
+function auditSigningKey(seed: string): Promise<CryptoKey | null> {
+  if (!auditKeyCache || auditKeyCache.seed !== seed) {
+    auditKeyCache = { seed, key: importAuditSigningKey(seed).catch(() => null) };
+  }
+  return auditKeyCache.key;
+}
+
+/**
+ * The full audit path shared by all three site_audit tools: rate limit
+ * (checked and counted here, against the target), bounded fetches via
+ * audit.ts's guarded fetcher, then a live edge signature when the audit key
+ * is provisioned. Target validity must be checked by the caller BEFORE any
+ * payment is taken; this function re-validates as defense in depth.
+ */
+async function auditAndSign(
+  env: PaymentEnv,
+  url: string,
+): Promise<Record<string, unknown>> {
+  const target = validateTargetUrl(url);
+  if (!target.ok) return { error: "invalid target", reason: target.reason };
+  const limited = await auditRateLimitReason(env, target.origin, true);
+  if (limited) return { error: "audit refused", reason: limited };
+  const payload = await runAudit(target.origin, realFetcher);
+  let signature: AuditSignature | null = null;
+  if (env.AUDIT_SIGNING_KEY) {
+    const key = await auditSigningKey(env.AUDIT_SIGNING_KEY);
+    if (key) {
+      try {
+        signature = await signAuditPayload(payload, key);
+      } catch {
+        // A signing failure serves an honest unsigned receipt, not a 500.
+      }
+    }
+  }
+  return { receipt: await buildAuditReceipt(payload, signature) };
 }
 
 export class DriftOracleMCP extends McpAgent<PaymentEnv> {
@@ -408,6 +511,115 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
             receipt: catalog.receipt,
             _source: catalog._source,
           });
+        },
+      );
+    }
+
+    // --- product 3: the site audit -----------------------------------------
+    // The first tools here that fetch a destination the buyer supplies, so
+    // everything funnels through audit.ts's guarded fetcher and the
+    // per-target rate limit above. Free summary, paid detail, both rails -
+    // the same shape the drift report proved out.
+    const auditSchema = {
+      url: z
+        .string()
+        .min(1)
+        .describe('the site URL to audit, e.g. "https://example.com"'),
+    };
+
+    this.server.tool(
+      "site_audit_summary",
+      "Free. Submit a site URL; the worker runs 12 agent-legibility checks " +
+        "against it (robots.txt AI-crawler directives, llms.txt, MCP " +
+        "advertisement, structured data, meta/charset/content-type sanity, " +
+        "no-JS response) with bounded fetches, private addresses refused, " +
+        "and a per-target rate limit. Returns how many of 12 passed, plus " +
+        "target and date - enough to decide whether the paid per-check " +
+        "detail is worth it.",
+      auditSchema,
+      async ({ url }) => {
+        const result = await auditAndSign(this.env, url);
+        const receipt = result.receipt as
+          | { payload: { target: string; audited_at: string; summary: { pass: number; total: number } } }
+          | undefined;
+        if (!receipt) return json(result);
+        return json({
+          target: receipt.payload.target,
+          audited_at: receipt.payload.audited_at,
+          checks_passed: receipt.payload.summary.pass,
+          checks_total: receipt.payload.summary.total,
+          _note:
+            "per-check status, detail, and the signed receipt are the paid " +
+            `tier: site_audit ($${AUDIT_PRICE_USD}, MPP) or site_audit_x402 ` +
+            `($${AUDIT_PRICE_USD}, x402/USDC)`,
+        });
+      },
+    );
+
+    this.server.tool(
+      "site_audit",
+      `Paid ($${AUDIT_PRICE_USD}). All 12 agent-legibility checks for a ` +
+        "submitted site URL, each with status and detail, as a dated " +
+        "receipt signed live with a dedicated Ed25519 audit key (or " +
+        "explicitly unsigned while that key is unprovisioned - never a " +
+        "fabricated signature). Verify with verify_report. The signature " +
+        "proves what was checked and when, not that the site is good.",
+      auditSchema,
+      async ({ url }, extra) => {
+        // Validity and rate limit are checked BEFORE charging: a buyer must
+        // not pay for "invalid target". auditAndSign re-checks after.
+        const target = validateTargetUrl(url);
+        if (!target.ok) return json({ error: "invalid target", reason: target.reason });
+        const limited = await auditRateLimitReason(this.env, target.origin, false);
+        if (limited) return json({ error: "audit refused", reason: limited });
+
+        if (this.env.DISABLE_PAYMENTS === "1") {
+          return json({
+            ...(await auditAndSign(this.env, url)),
+            _note: "payments disabled (local test mode)",
+          });
+        }
+
+        if (payoutGuard) {
+          return json({ error: "payments unavailable", reason: payoutGuard });
+        }
+
+        const payment = await mppx.charge({
+          amount: AUDIT_PRICE_USD,
+          currency: CURRENCY,
+          description: "Site audit - 12 agent-legibility checks, signed",
+          recipient: this.env.PAYOUT_ADDRESS,
+        })(extra);
+
+        if (payment.status === 402) throw payment.challenge;
+
+        await stampSettlement(this.env, "site_audit", "mpp");
+        return payment.withReceipt(json(await auditAndSign(this.env, url)));
+      },
+    );
+
+    const siteAuditX402Description =
+      `Paid ($${AUDIT_PRICE_USD}, x402/USDC). Same full site audit as ` +
+      "site_audit: all 12 checks with status and detail as a signed dated " +
+      "receipt. Pay with x402 if you hold USDC; use site_audit to pay by " +
+      "card or other MPP methods. Payment settles before the target is " +
+      "checked, so run the free site_audit_summary first to confirm your " +
+      "URL is valid and not rate limited.";
+
+    if (payoutGuard) {
+      this.server.tool("site_audit_x402", siteAuditX402Description, auditSchema, async () =>
+        json({ error: "payments unavailable", reason: payoutGuard }),
+      );
+    } else {
+      this.server.paidTool(
+        "site_audit_x402",
+        siteAuditX402Description,
+        Number(AUDIT_PRICE_USD),
+        auditSchema,
+        {},
+        async ({ url }: { url: string }) => {
+          await stampSettlement(this.env, "site_audit_x402", "x402");
+          return json(await auditAndSign(this.env, url));
         },
       );
     }

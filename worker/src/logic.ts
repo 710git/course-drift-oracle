@@ -58,6 +58,10 @@ export async function verifyReceipt(
   receipt: Record<string, unknown>,
   findings?: unknown,
 ): Promise<{ signature: boolean; findingsHash: boolean | null; reason: string }> {
+  if (receipt.type === AUDIT_RECEIPT_TYPE) {
+    return verifyAuditReceiptShape(receipt as unknown as AuditReceipt);
+  }
+
   const sig = receipt.signature as
     | { alg?: string; sig?: string; public_key?: string }
     | undefined;
@@ -117,6 +121,239 @@ export async function verifyReceipt(
 export const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
 });
+
+// ---------------------------------------------------------------------------
+// Base64url encoding (the write-side complement to `b64urlDecode` above).
+// ---------------------------------------------------------------------------
+
+export function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let binary = "";
+  for (const b of arr) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// ---------------------------------------------------------------------------
+// Agent Readiness Auditor (Product 3) receipts.
+//
+// `AuditPayload`/`AuditCheck` are the shared audit contract: the checks
+// module (audit.ts) produces one of these; this module only signs and verifies
+// it, reusing `canonicalize`/`sha256Canonical`/`b64urlDecode` above rather
+// than duplicating them. This is the canonical home for these two types:
+// anything else that needs them should import from here, not redeclare them.
+//
+// Signing uses a NEW, separate Ed25519 key from the oracle's report-signing
+// key (env AUDIT_SIGNING_KEY, worker-side only - never the CI-only oracle
+// chain key). When that key is not provisioned, the audit still runs and
+// the receipt says so honestly instead of faking a signature.
+// ---------------------------------------------------------------------------
+
+export type AuditCheckStatus = "pass" | "warn" | "info" | "fail" | "error";
+
+export type AuditCheck = {
+  id: string; // fixed ids listed in the ticket, fixed order
+  title: string; // short human title
+  status: AuditCheckStatus;
+  detail: string; // derived facts only, hard cap 300 chars, never raw body
+};
+
+export type AuditPayload = {
+  version: "audit-v1";
+  target: string; // normalized origin, e.g. "https://example.com"
+  audited_at: string; // ISO 8601 UTC
+  fetches: number; // outbound requests actually made (hard cap 10)
+  checks: AuditCheck[]; // exactly 12, in the fixed order
+  summary: { pass: number; total: 12 };
+};
+
+export type AuditSignature = {
+  alg: "EdDSA";
+  sig: string;
+  public_key: string;
+};
+
+/** Shape marker `verifyReceipt` dispatches on; distinguishes an audit
+ * receipt from a `course.drift_report.v1` report receipt. */
+export const AUDIT_RECEIPT_TYPE = "course.site_audit.v1";
+
+export type AuditReceipt = {
+  type: typeof AUDIT_RECEIPT_TYPE;
+  payload: AuditPayload;
+  payload_hash: string;
+  signature: AuditSignature | null;
+  /** Present only when unsigned - an honest explanation, never a fake signature. */
+  note?: string;
+};
+
+const AUDIT_UNSIGNED_NOTE =
+  "unsigned: AUDIT_SIGNING_KEY is not provisioned on this worker; this report " +
+  "carries a payload hash but no signature.";
+
+// The standard PKCS#8 wrapper for a raw 32-byte Ed25519 private key seed
+// (RFC 8410 algorithm identifier + OCTET STRING framing). WebCrypto's
+// "pkcs8" import format needs this prefix; it never needs the seed alone.
+const PKCS8_ED25519_PREFIX = new Uint8Array([
+  0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+]);
+
+/**
+ * Public key that goes with a signing key produced by `importAuditSigningKey`,
+ * keyed by object identity. The signing key itself is deliberately
+ * non-extractable (least privilege: it can sign, nothing can read its bits
+ * back out) so the public key has to be captured at import time instead.
+ */
+const auditPublicKeyBySigningKey = new WeakMap<CryptoKey, string>();
+
+/**
+ * Decode a base64url-nopad 32-byte Ed25519 seed (as provisioned via the
+ * AUDIT_SIGNING_KEY secret) and import it as a signing-only CryptoKey.
+ */
+export async function importAuditSigningKey(seedB64url: string): Promise<CryptoKey> {
+  const seed = b64urlDecode(seedB64url);
+  if (seed.length !== 32) {
+    throw new Error(
+      `AUDIT_SIGNING_KEY must decode to a 32-byte Ed25519 seed, got ${seed.length} bytes`,
+    );
+  }
+  const pkcs8 = new Uint8Array(PKCS8_ED25519_PREFIX.length + seed.length);
+  pkcs8.set(PKCS8_ED25519_PREFIX, 0);
+  pkcs8.set(seed, PKCS8_ED25519_PREFIX.length);
+
+  const signingKey = await crypto.subtle.importKey(
+    "pkcs8",
+    pkcs8,
+    { name: "Ed25519" },
+    false,
+    ["sign"],
+  );
+
+  // A second, extractable import of the same bytes exists only to read the
+  // matching public key back out (buyers verify offline, so the receipt has
+  // to carry it). That copy never signs anything and is not retained.
+  const extractableCopy = await crypto.subtle.importKey(
+    "pkcs8",
+    pkcs8,
+    { name: "Ed25519" },
+    true,
+    ["sign"],
+  );
+  const jwk = (await crypto.subtle.exportKey("jwk", extractableCopy)) as JsonWebKey;
+  auditPublicKeyBySigningKey.set(signingKey, jwk.x as string);
+
+  return signingKey;
+}
+
+/**
+ * Sign an audit payload: Ed25519 over the SHA-256 of its RFC 8785 canonical
+ * JSON, the exact mechanism `verifyReceipt` already uses for report
+ * receipts. `key` must come from `importAuditSigningKey` - that is where the
+ * matching public key was captured.
+ */
+export async function signAuditPayload(
+  payload: AuditPayload,
+  key: CryptoKey,
+): Promise<AuditSignature> {
+  const publicKey = auditPublicKeyBySigningKey.get(key);
+  if (!publicKey) {
+    throw new Error("signAuditPayload: key was not produced by importAuditSigningKey");
+  }
+  const messageHash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(canonicalize(payload)),
+  );
+  const sigBytes = await crypto.subtle.sign({ name: "Ed25519" }, key, messageHash);
+  return { alg: "EdDSA", sig: b64urlEncode(sigBytes), public_key: publicKey };
+}
+
+/**
+ * Build the audit receipt. When `signatureBundle` is null (no signing key
+ * provisioned), the receipt is still useful - it carries the payload hash a
+ * buyer can recompute themselves - but `signature` is honestly `null` with a
+ * `note` explaining why. It never fabricates a hash-only pseudo-signature.
+ */
+export async function buildAuditReceipt(
+  payload: AuditPayload,
+  signatureBundle: AuditSignature | null,
+): Promise<AuditReceipt> {
+  const payload_hash = await sha256Canonical(payload);
+  if (signatureBundle === null) {
+    return {
+      type: AUDIT_RECEIPT_TYPE,
+      payload,
+      payload_hash,
+      signature: null,
+      note: AUDIT_UNSIGNED_NOTE,
+    };
+  }
+  return {
+    type: AUDIT_RECEIPT_TYPE,
+    payload,
+    payload_hash,
+    signature: signatureBundle,
+  };
+}
+
+/**
+ * Audit-shape half of `verifyReceipt`'s dispatch: same mechanism (Ed25519
+ * over SHA-256 of RFC 8785 canonical JSON), applied to the embedded payload
+ * rather than to "receipt minus signature" the way report receipts work,
+ * since an audit receipt signs its payload directly rather than itself.
+ */
+async function verifyAuditReceiptShape(
+  receipt: AuditReceipt,
+): Promise<{ signature: boolean; findingsHash: boolean | null; reason: string }> {
+  const sig = receipt.signature;
+  if (!sig) {
+    return {
+      signature: false,
+      findingsHash: null,
+      reason: "receipt is unsigned (no signing key was provisioned when it was built)",
+    };
+  }
+  if (sig.alg !== "EdDSA" || !sig.sig || !sig.public_key) {
+    return { signature: false, findingsHash: null, reason: "missing or non-EdDSA signature" };
+  }
+
+  const messageHash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(canonicalize(receipt.payload)),
+  );
+
+  let signatureOk = false;
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      b64urlDecode(sig.public_key),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    signatureOk = await crypto.subtle.verify(
+      { name: "Ed25519" },
+      key,
+      b64urlDecode(sig.sig),
+      messageHash,
+    );
+  } catch (error) {
+    return {
+      signature: false,
+      findingsHash: null,
+      reason: `signature check failed: ${(error as Error).message}`,
+    };
+  }
+
+  const payloadHashOk = (await sha256Canonical(receipt.payload)) === receipt.payload_hash;
+
+  return {
+    signature: signatureOk,
+    findingsHash: payloadHashOk,
+    reason: signatureOk
+      ? payloadHashOk
+        ? "verified"
+        : "signature valid but payload does not match the committed hash"
+      : "signature does not verify against the embedded public key",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Model deprecation feed: a lookup, not a scan.

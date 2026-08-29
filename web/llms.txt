@@ -33,6 +33,13 @@ streamable HTTP transport.
   `any_action_needed` boolean out.
 - [model_status_batch_x402](catalog.json): $0.10 USD, paid via x402/USDC on
   Base Sepolia (testnet). Identical goods to model_status_batch.
+- [site_audit_summary](catalog.json): free. Submit a site URL, get back
+  "N of 12 checks passed" plus the target and date.
+- [site_audit](catalog.json): $0.25 USD, paid via MPP (testnet). All 12
+  agent-legibility checks for a submitted site URL, each with status and
+  detail, as a signed dated receipt.
+- [site_audit_x402](catalog.json): $0.25 USD, paid via x402/USDC on Base
+  Sepolia (testnet). Identical report to site_audit.
 
 ## Badge
 
