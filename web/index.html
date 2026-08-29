@@ -123,6 +123,16 @@ check, not a launch-day anecdote.
 (<code>GET /pot</code>). Faucet USDC, not revenue; click the coins to
 count them out loud.
 </p>
+<p id="self-audit" hidden>
+🪞 the mirror: this service runs its own site audit against its own
+origin and publishes the signed receipt
+(<a href="https://signetworks.atelieri.workers.dev/self-audit"><code>GET /self-audit</code></a>).
+Current score: <strong id="self-audit-score"></strong>
+<span id="self-audit-meta"></span> Two of the twelve checks report facts
+rather than verdicts, so 10/12 is a perfect score. The signature proves
+what was checked and when, never that the checks are exhaustive; verify
+it with the free <code>verify_report</code> tool.
+</p>
 
 <h2>Site audit</h2>
 <p>
@@ -334,6 +344,29 @@ Source: <a href="https://github.com/710git/course-drift-oracle">github.com/710gi
       });
     })
     .catch(function () { /* no pot today; the page stands without it */ });
+})();
+
+// The mirror: GET /self-audit is the worker's signed audit of its own
+// origin, run with the same product it sells. Hidden entirely if the
+// endpoint is unreachable; the score speaks only when it can be fetched.
+(function () {
+  var card = document.getElementById("self-audit");
+  var score = document.getElementById("self-audit-score");
+  var meta = document.getElementById("self-audit-meta");
+  if (!card || !score || !meta) return;
+  fetch("https://signetworks.atelieri.workers.dev/self-audit")
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      var p = j && j.payload;
+      if (!p || !p.summary || p.summary.total !== 12) return;
+      score.textContent = p.summary.pass + " of 12";
+      var when = p.audited_at ? new Date(p.audited_at) : null;
+      var dateText = when && !isNaN(when) ? when.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "";
+      meta.textContent = "(" + (j.signature ? "signed" : "unsigned") +
+        (dateText ? ", audited " + dateText : "") + ", refreshed hourly).";
+      card.hidden = false;
+    })
+    .catch(function () { /* the mirror is quiet today; the page stands */ });
 })();
 </script>
 

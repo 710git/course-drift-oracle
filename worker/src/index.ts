@@ -55,8 +55,10 @@ import { z } from "zod";
 import bundledCatalog from "../data/catalog.json";
 import bundledFree from "../data/free.json";
 import bundledPaid from "../data/paid.json";
-import { realFetcher, runAudit, validateTargetUrl } from "./audit";
+import { makeFetcher, realFetcher, runAudit, validateTargetUrl } from "./audit";
 import {
+  type AuditPayload,
+  type AuditReceipt,
   type AuditSignature,
   buildAuditReceipt,
   buildModelBadge,
@@ -247,18 +249,24 @@ async function auditAndSign(
   const limited = await auditRateLimitReason(env, target.origin, true);
   if (limited) return { error: "audit refused", reason: limited };
   const payload = await runAudit(target.origin, realFetcher);
-  let signature: AuditSignature | null = null;
-  if (env.AUDIT_SIGNING_KEY) {
-    const key = await auditSigningKey(env.AUDIT_SIGNING_KEY);
-    if (key) {
-      try {
-        signature = await signAuditPayload(payload, key);
-      } catch {
-        // A signing failure serves an honest unsigned receipt, not a 500.
-      }
-    }
+  return { receipt: await buildAuditReceipt(payload, await signIfProvisioned(env, payload)) };
+}
+
+/** Sign an audit payload with the edge key when it is provisioned; an
+ * absent, malformed, or failing key serves an honest unsigned receipt,
+ * never a 500 and never a fabricated signature. */
+async function signIfProvisioned(
+  env: PaymentEnv,
+  payload: AuditPayload,
+): Promise<AuditSignature | null> {
+  if (!env.AUDIT_SIGNING_KEY) return null;
+  const key = await auditSigningKey(env.AUDIT_SIGNING_KEY);
+  if (!key) return null;
+  try {
+    return await signAuditPayload(payload, key);
+  } catch {
+    return null;
   }
-  return { receipt: await buildAuditReceipt(payload, signature) };
 }
 
 export class DriftOracleMCP extends McpAgent<PaymentEnv> {
@@ -724,18 +732,210 @@ async function handlePot(env: PaymentEnv): Promise<Response> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// The worker's own agent-legible face. This service sells a
+// legibility audit, so its own origin practices what it audits: a real
+// homepage, robots.txt, llms.txt, and a well-known MCP advertisement, each
+// served with the content type its role implies. These pages are also what
+// the self-audit below examines.
+// ---------------------------------------------------------------------------
+
+const HOME_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Course Drift Oracle</title>
+<meta name="description" content="MCP server selling signed drift reports, model deprecation facts, and site audits. Free tiers, paid detail, x402 and MPP rails.">
+<link rel="mcp-server" href="/mcp">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Service","name":"Course Drift Oracle","description":"Signed, verifiable facts for agents: course drift reports, model deprecation status, site legibility audits.","serviceType":"MCP tool server"}
+</script>
+</head>
+<body>
+<h1>Course Drift Oracle</h1>
+<p>An MCP server at <code>/mcp</code> (streamable HTTP). Ten tools: signed
+drift reports for the ai-agents-for-beginners course, model deprecation
+facts, and twelve-check site legibility audits. Free summaries and
+verification, paid detail on two rails (MPP and x402/USDC, testnet).</p>
+<p>Free surfaces: <a href="/badge?models=gpt-4o">/badge</a>,
+<a href="/heartbeat">/heartbeat</a>, <a href="/pot">/pot</a>,
+<a href="/self-audit">/self-audit</a>, <a href="/llms.txt">/llms.txt</a>.
+Storefront and docs:
+<a href="https://710git.github.io/course-drift-oracle/">course-drift-oracle</a>.</p>
+</body>
+</html>
+`;
+
+const ROBOTS_TXT = `# Course Drift Oracle - agents and their crawlers are the audience.
+User-agent: GPTBot
+Disallow:
+
+User-agent: ClaudeBot
+Disallow:
+
+User-agent: Google-Extended
+Disallow:
+
+User-agent: PerplexityBot
+Disallow:
+
+User-agent: CCBot
+Disallow:
+
+User-agent: anthropic-ai
+Disallow:
+
+User-agent: *
+Disallow:
+`;
+
+const LLMS_TXT = `# Course Drift Oracle
+
+> MCP server selling signed drift reports, model deprecation facts, and
+> twelve-check site legibility audits. Free tiers on every product; paid
+> detail settles via MPP or x402/USDC (testnet).
+
+## Free surfaces
+
+- [heartbeat](/heartbeat): shields.io badge JSON, days since the last
+  real settlement on this worker.
+- [pot](/pot): lifetime settlement tally, one coin per cleared payment.
+- [badge](/badge?models=gpt-4o): model deprecation status as a badge.
+- [mcp advertisement](/.well-known/mcp.json): where the MCP endpoint
+  lives and how to speak to it.
+
+## Endpoint
+
+MCP over streamable HTTP at /mcp. The storefront with the full catalog
+lives at https://710git.github.io/course-drift-oracle/.
+`;
+
+const MCP_WELL_KNOWN = JSON.stringify({
+  name: "course-drift-oracle",
+  transport: "streamable-http",
+  endpoint: "/mcp",
+  description:
+    "Signed drift reports, model deprecation facts, and site legibility audits. Free and paid tools; paid detail settles via MPP or x402/USDC (testnet).",
+  catalog: "https://710git.github.io/course-drift-oracle/catalog.json",
+});
+
+function pageResponse(body: string, contentType: string): Response {
+  return new Response(body, {
+    headers: {
+      "content-type": contentType,
+      "cache-control": "public, max-age=3600",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+/**
+ * Free-route dispatch, shared verbatim between the public fetch handler and
+ * the self-audit's in-process fetcher, so the self-audit examines exactly
+ * the code paths the public gets. Returns null for anything that is not a
+ * free route (the public handler then falls through to MCP). GET and HEAD
+ * both match: llms.txt link checks probe with HEAD, and a HEAD that 405s on
+ * a path the GET serves would be a real legibility bug.
+ */
+async function freeRoutes(request: Request, env: PaymentEnv): Promise<Response | null> {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const { pathname } = new URL(request.url);
+  switch (pathname) {
+    case "/":
+      return pageResponse(HOME_HTML, "text/html; charset=utf-8");
+    case "/robots.txt":
+      return pageResponse(ROBOTS_TXT, "text/plain; charset=utf-8");
+    case "/llms.txt":
+      return pageResponse(LLMS_TXT, "text/plain; charset=utf-8");
+    case "/.well-known/mcp.json":
+      return pageResponse(MCP_WELL_KNOWN, "application/json");
+    case "/badge":
+      return handleBadge(request, env);
+    case "/heartbeat":
+      return handleHeartbeat(env);
+    case "/pot":
+      return handlePot(env);
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /self-audit: the worker runs its own paid product's
+// twelve checks against its own origin and serves the signed receipt.
+//
+// A Cloudflare Worker cannot fetch its own hostname, so the audit runs
+// in-process: runAudit gets a fetcher whose raw layer dispatches
+// same-origin requests through freeRoutes above - the same handlers, the
+// same bytes, just not the public network path. That distinction is stated
+// in the response rather than hidden. Cached in KV for an hour so a popular
+// storefront does not re-run ten route evaluations per page view.
+// ---------------------------------------------------------------------------
+
+const SELF_AUDIT_KV_KEY = "self-audit-receipt";
+const SELF_AUDIT_TTL_SECS = 3600;
+const SELF_AUDIT_NOTE =
+  "self-audit: this worker ran its own site_audit checks against its own " +
+  "origin, in-process through the same handlers that serve these routes " +
+  "(a worker cannot fetch its own hostname). Refreshed hourly. Checks 3 " +
+  "and 12 report facts, not verdicts, so 10/12 is the maximum score. The " +
+  "signature proves what was checked and when, never that the checks are " +
+  "exhaustive.";
+
+async function handleSelfAudit(request: Request, env: PaymentEnv): Promise<Response> {
+  const respond = (receipt: AuditReceipt) =>
+    new Response(JSON.stringify({ ...receipt, _note: SELF_AUDIT_NOTE }), {
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "public, max-age=300",
+        "access-control-allow-origin": "*",
+      },
+    });
+
+  try {
+    const cached = (await env.REPORTS?.get(SELF_AUDIT_KV_KEY, "json")) as AuditReceipt | null;
+    const auditedAt = cached ? Date.parse(cached.payload?.audited_at ?? "") : Number.NaN;
+    if (cached && !Number.isNaN(auditedAt) && Date.now() - auditedAt < SELF_AUDIT_TTL_SECS * 1000) {
+      return respond(cached);
+    }
+  } catch {
+    // An unreadable cache just means a fresh run below.
+  }
+
+  const origin = new URL(request.url).origin;
+  const localFetcher = makeFetcher(async (input, init) => {
+    const req = new Request(input, { method: init?.method ?? "GET" });
+    return (await freeRoutes(req, env)) ?? new Response("not found", { status: 404 });
+  });
+
+  try {
+    const payload = await runAudit(origin, localFetcher);
+    const receipt = await buildAuditReceipt(payload, await signIfProvisioned(env, payload));
+    try {
+      await env.REPORTS?.put(SELF_AUDIT_KV_KEY, JSON.stringify(receipt), {
+        expirationTtl: SELF_AUDIT_TTL_SECS * 2,
+      });
+    } catch {
+      // Losing the cache costs recomputation, not correctness.
+    }
+    return respond(receipt);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: "self-audit unavailable", reason: message }), {
+      status: 503,
+      headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+    });
+  }
+}
+
 export default {
   async fetch(request: Request, env: PaymentEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/badge") {
-      return handleBadge(request, env);
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/self-audit") {
+      return handleSelfAudit(request, env);
     }
-    if (request.method === "GET" && url.pathname === "/heartbeat") {
-      return handleHeartbeat(env);
-    }
-    if (request.method === "GET" && url.pathname === "/pot") {
-      return handlePot(env);
-    }
+    const free = await freeRoutes(request, env);
+    if (free) return free;
     return mcpHandler.fetch(request, env, ctx);
   },
 };
