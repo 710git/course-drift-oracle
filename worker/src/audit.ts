@@ -218,7 +218,11 @@ export function validateTargetUrl(
     return { ok: false, reason: `port ${url.port} is not allowed; only 80, 443, or none` };
   }
 
-  const hostname = url.hostname.toLowerCase();
+  // Strip a single trailing dot (a syntactically valid "fully qualified"
+  // hostname, e.g. "localhost.") before every check below - WHATWG URL
+  // parsing preserves it on hostnames (though not on IPv4 literals), and
+  // left in place it defeats both the exact-match and endsWith comparisons.
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
 
   if (hostname === "localhost" || RESERVED_HOSTNAME_SUFFIXES.some((sfx) => hostname.endsWith(sfx))) {
     return { ok: false, reason: "reserved or local hostname" };
@@ -254,6 +258,18 @@ export function validateTargetUrl(
 
 export type Fetcher = (url: string, init?: { method?: "GET" | "HEAD" }) => Promise<FetchedDoc>;
 
+/** Best-effort cancel of a response body the caller is discarding without
+ * reading (a redirect hop's own body, an over-cap body, ...). Mirrors the
+ * existing cancel-on-truncate pattern in the body-read loop below. */
+async function cancelBody(response: Response): Promise<void> {
+  if (!response.body) return;
+  try {
+    await response.body.cancel();
+  } catch {
+    // best effort
+  }
+}
+
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BODY_BYTES = 200 * 1024;
@@ -284,7 +300,11 @@ export function makeFetcher(rawFetch: typeof fetch = fetch): Fetcher {
         const message = error instanceof Error ? error.message : String(error);
         return { url: currentUrl, error: `fetch failed: ${message}`.slice(0, DETAIL_CAP) };
       }
-      clearTimeout(timer);
+      // The timer is deliberately NOT cleared here: it has to keep covering
+      // the body-read loop below (a server that sends headers promptly and
+      // then never another byte would otherwise hang with no time bound at
+      // all). It is cleared on every exit path from here on instead - the
+      // three redirect branches, the body-read catch, and the final return.
 
       // Manual redirects surface as opaqueredirect (status 0) in some fetch
       // implementations, or as an ordinary 3xx with a Location header in
@@ -292,16 +312,24 @@ export function makeFetcher(rawFetch: typeof fetch = fetch): Fetcher {
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
         if (!location) {
+          await cancelBody(response);
+          clearTimeout(timer);
           return { url: currentUrl, error: `redirect (${response.status}) with no Location header` };
         }
         if (hop === MAX_REDIRECTS) {
+          await cancelBody(response);
+          clearTimeout(timer);
           return { url: currentUrl, error: "too many redirects" };
         }
         try {
           currentUrl = new URL(location, currentUrl).toString();
         } catch {
+          await cancelBody(response);
+          clearTimeout(timer);
           return { url: currentUrl, error: "redirect Location header is not a valid URL" };
         }
+        await cancelBody(response);
+        clearTimeout(timer);
         continue; // re-validate the new hop at the top of the loop
       }
 
@@ -313,33 +341,39 @@ export function makeFetcher(rawFetch: typeof fetch = fetch): Fetcher {
         const reader = response.body.getReader();
         const chunks: Uint8Array[] = [];
         let total = 0;
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (!value) continue;
-          const remaining = MAX_BODY_BYTES - total;
-          if (remaining <= 0) {
-            truncated = true;
-            try {
-              await reader.cancel();
-            } catch {
-              // best effort; the loop exits either way
+        try {
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!value) continue;
+            const remaining = MAX_BODY_BYTES - total;
+            if (remaining <= 0) {
+              truncated = true;
+              try {
+                await reader.cancel();
+              } catch {
+                // best effort; the loop exits either way
+              }
+              break;
             }
-            break;
-          }
-          const slice = value.byteLength > remaining ? value.slice(0, remaining) : value;
-          chunks.push(slice);
-          total += slice.byteLength;
-          if (slice.byteLength < value.byteLength) {
-            truncated = true;
-            try {
-              await reader.cancel();
-            } catch {
-              // best effort
+            const slice = value.byteLength > remaining ? value.slice(0, remaining) : value;
+            chunks.push(slice);
+            total += slice.byteLength;
+            if (slice.byteLength < value.byteLength) {
+              truncated = true;
+              try {
+                await reader.cancel();
+              } catch {
+                // best effort
+              }
+              break;
             }
-            break;
           }
+        } catch (error) {
+          clearTimeout(timer);
+          const message = error instanceof Error ? error.message : String(error);
+          return { url: currentUrl, error: `body read failed: ${message}`.slice(0, DETAIL_CAP) };
         }
         const combined = new Uint8Array(total);
         let offset = 0;
@@ -349,6 +383,7 @@ export function makeFetcher(rawFetch: typeof fetch = fetch): Fetcher {
         }
         body = new TextDecoder().decode(combined); // utf-8, non-fatal by default
       }
+      clearTimeout(timer);
 
       return {
         url: currentUrl,
