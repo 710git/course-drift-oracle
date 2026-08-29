@@ -91,7 +91,7 @@ tool uses, so a README can wear its model-drift status in one line.
 
 <h2>Heartbeat</h2>
 <p>
-<img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fsignetworks.atelieri.workers.dev%2Fheartbeat" alt="last settlement badge">
+<img id="heartbeat-badge" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fsignetworks.atelieri.workers.dev%2Fheartbeat" alt="last settlement badge" title="click to hear the heartbeat" style="cursor:pointer">
 &nbsp;This paywall re-proves itself: an automated buyer purchases a report
 every week with a real x402/USDC settlement on Base Sepolia, and every sale
 stamps the server's own last-settlement record. <code>GET /heartbeat</code>
@@ -187,6 +187,45 @@ exact fields and file references.
 Source: <a href="https://github.com/710git/course-drift-oracle">github.com/710git/course-drift-oracle</a>
 &middot; layout of this directory: <a href="./README.md">README.md</a>
 </footer>
+
+<script>
+// Easter egg: click the heartbeat badge to hear it. One soft note whose
+// pitch tracks settlement freshness: a settlement today rings high, and
+// the tone drops a semitone for each day since the last one. No payment
+// data leaves the page; this reads the same public /heartbeat endpoint
+// the badge itself renders.
+(function () {
+  var badge = document.getElementById("heartbeat-badge");
+  if (!badge) return;
+  badge.addEventListener("click", function () {
+    fetch("https://signetworks.atelieri.workers.dev/heartbeat")
+      .then(function (r) { return r.json(); })
+      .then(function (b) {
+        var msg = String(b && b.message || "");
+        var days;
+        if (msg === "today") days = 0;
+        else {
+          var m = msg.match(/^(\d+) days? ago$/);
+          days = m ? Number(m[1]) : null;
+        }
+        var freq = days === null ? 196 : Math.max(220, 660 * Math.pow(2, -days / 12));
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (days === null ? 0.35 : 0.9));
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1);
+        osc.onended = function () { ctx.close(); };
+      })
+      .catch(function () { /* a silent badge is fine; the egg is optional */ });
+  });
+})();
+</script>
 
 </body>
 </html>
