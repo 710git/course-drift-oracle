@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.710git/course-drift-oracle",
-  "description": "Signed drift reports for the ai-agents-for-beginners course. Free summary; $0.25 full report.",
+  "description": "Signed model-drift reports, model retirement lookups and agent-readiness site audits. Four free tools; six paid ($0.10-$0.25) on MPP and x402 rails.",
   "title": "Course Drift Oracle",
   "version": "1.0.0",
   "websiteUrl": "https://github.com/710git/course-drift-oracle",
@@ -20,8 +20,14 @@
       "pricing": {
         "drift_summary": "free",
         "verify_report": "free",
+        "model_status": "free",
+        "site_audit_summary": "free",
         "drift_report": "$0.25 USD via MPP (Tempo testnet)",
-        "drift_report_x402": "$0.25 USD via x402 (Base Sepolia testnet)"
+        "drift_report_x402": "$0.25 USD via x402 (Base Sepolia testnet)",
+        "model_status_batch": "$0.10 USD via MPP (Tempo testnet)",
+        "model_status_batch_x402": "$0.10 USD via x402 (Base Sepolia testnet)",
+        "site_audit": "$0.25 USD via MPP (Tempo testnet)",
+        "site_audit_x402": "$0.25 USD via x402 (Base Sepolia testnet)"
       },
       "verification": "Ed25519 signatures over RFC 8785 canonical JSON; verify_report checks any receipt for free",
       "contact": "pm.agent.svc@gmail.com"

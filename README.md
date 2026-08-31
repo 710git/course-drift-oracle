@@ -46,17 +46,20 @@ The service is an MCP server over streamable HTTP:
 https://signetworks.atelieri.workers.dev/mcp
 ```
 
-Four tools:
+Ten tools:
 
 | Tool | Price | Returns |
 |---|---|---|
 | `drift_summary` | free | finding counts by severity and lesson, plus a signed receipt |
 | `verify_report` | free | checks a receipt's signature and, optionally, that a findings array matches it |
 | `drift_report` | $0.25 | every finding: file, line, diagnosis, fix. Paid via MPP (Tempo testnet) |
-| `drift_report_x402` | $0.25 | the same report, paid via x402/USDC |
+| `drift_report_x402` | $0.25 | the same report, paid via x402/USDC (Base Sepolia testnet) |
 | `model_status` | free | one model id in, its signed catalog entry out: current, deprecated, retired, or an honest "unknown: not in catalog" |
 | `model_status_batch` | $0.10 | a list of model ids in, one entry per id plus an `any_action_needed` gate boolean, paid via MPP (Tempo testnet) |
-| `model_status_batch_x402` | $0.10 | the same batch lookup, paid via x402/USDC |
+| `model_status_batch_x402` | $0.10 | the same batch lookup, paid via x402/USDC (Base Sepolia testnet) |
+| `site_audit_summary` | free | agent-readiness score for a public site (12 checks): counts, target and date only; the per-check detail and signed receipt are the paid tier |
+| `site_audit` | $0.25 | all 12 checks with per-check status, detail and fix list as a signed dated receipt. Paid via MPP (Tempo testnet) |
+| `site_audit_x402` | $0.25 | the same full audit, paid via x402/USDC (Base Sepolia testnet) |
 
 A typical run:
 
@@ -128,7 +131,7 @@ the buyer per "Wiring a real x402 payer" in `clients/buyer/README.md`.
 
 ```
 oracle/     the scanner and the signing code
-worker/     the MCP server: two free tools, two paid tools, HTTP 402
+worker/     the MCP server: four free tools, six paid tools, HTTP 402
 web/        the storefront pages served alongside the endpoint
 clients/    an independent buyer client - run it yourself before you pay
 ```

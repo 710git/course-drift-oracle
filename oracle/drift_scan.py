@@ -74,6 +74,7 @@ MODEL_PATTERNS = (
     re.compile(rf"""["']({MODEL_ID})["']"""),          # "gpt-4o" / 'gpt-4o'
     re.compile(rf"`({MODEL_ID})`"),                     # `gpt-4o` in markdown
     re.compile(rf"[A-Z_]*(?:MODEL|DEPLOYMENT)[A-Z_]*\s*=\s*({MODEL_ID})"),
+    re.compile(rf'"({MODEL_ID})\\"'),                  # \"gpt-4o\" inside .ipynb JSON source lines
 )
 
 

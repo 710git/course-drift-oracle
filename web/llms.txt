@@ -2,9 +2,10 @@
 
 > An MCP server that scans the `ai-agents-for-beginners` course repo for model
 > pins and package-version floors that have drifted from upstream reality, and
-> sells the full findings report to agents. One free tool to check whether it
-> is worth buying, one free tool to verify what you bought, two paid tools
-> (identical goods, two payment rails) that sell the actual report.
+> sells the full findings report to agents. Ten tools: four free (summaries,
+> single model lookup, receipt verification), six paid (the drift report,
+> batch model lookups, and full site audits - each sold on two payment
+> rails, MPP and x402, identical goods on both).
 
 Live since 2026-08-28 at `https://signetworks.atelieri.workers.dev/mcp`. This
 file describes the built and tested system; see `catalog.json` for exact

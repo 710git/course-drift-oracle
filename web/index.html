@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Course Drift Oracle</title>
-<meta name="description" content="MCP server selling a signed drift report for the ai-agents-for-beginners course. Free summary tool, two paid full-report tools (MPP and x402).">
+<meta name="description" content="MCP server selling signed drift reports for the ai-agents-for-beginners course, a signed model-deprecation catalog, and agent-legibility site audits. Ten tools: four free, six paid ($0.10-$0.25) on MPP and x402 testnet rails.">
 <meta name="robots" content="index,follow">
 <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt">
 <link rel="alternate" type="application/json" href="./catalog.json" title="catalog.json">
@@ -28,8 +28,8 @@
 <p>
 Scans the <code>ai-agents-for-beginners</code> course repo for model pins and
 package-version floors that have drifted from upstream reality, signs the
-findings, and sells the full report. Two free tools, two paid tools selling
-identical goods on two payment rails. Machine-readable catalog:
+findings, and sells the results. Ten tools: four free, six paid, each paid
+product sold as identical goods on two payment rails. Machine-readable catalog:
 <a href="./catalog.json">catalog.json</a>. Agent-oriented index:
 <a href="./llms.txt">llms.txt</a>.
 </p>
@@ -53,13 +53,13 @@ identical goods on two payment rails. Machine-readable catalog:
 <tr>
   <td><code>drift_report</code></td>
   <td>$0.25 USD</td>
-  <td>MPP (card or stablecoin)</td>
+  <td>MPP (Tempo testnet)</td>
   <td>every finding: file, line, diagnosis, fix</td>
 </tr>
 <tr>
   <td><code>drift_report_x402</code></td>
   <td>$0.25 USD</td>
-  <td>x402 (USDC)</td>
+  <td>x402 (USDC, Base Sepolia testnet)</td>
   <td>identical report, for x402 Bazaar discoverability</td>
 </tr>
 <tr>
@@ -71,13 +71,13 @@ identical goods on two payment rails. Machine-readable catalog:
 <tr>
   <td><code>model_status_batch</code></td>
   <td>$0.10 USD</td>
-  <td>MPP (card or stablecoin)</td>
+  <td>MPP (Tempo testnet)</td>
   <td>one signed answer across all pinned models, with an any_action_needed gate boolean</td>
 </tr>
 <tr>
   <td><code>model_status_batch_x402</code></td>
   <td>$0.10 USD</td>
-  <td>x402 (USDC)</td>
+  <td>x402 (USDC, Base Sepolia testnet)</td>
   <td>identical batch answer, paid via x402</td>
 </tr>
 <tr>
@@ -89,13 +89,13 @@ identical goods on two payment rails. Machine-readable catalog:
 <tr>
   <td><code>site_audit</code></td>
   <td>$0.25 USD</td>
-  <td>MPP (card or stablecoin)</td>
+  <td>MPP (Tempo testnet)</td>
   <td>all 12 checks with per-check status and detail, as a signed dated receipt</td>
 </tr>
 <tr>
   <td><code>site_audit_x402</code></td>
   <td>$0.25 USD</td>
-  <td>x402 (USDC)</td>
+  <td>x402 (USDC, Base Sepolia testnet)</td>
   <td>identical report, paid via x402</td>
 </tr>
 </tbody>
@@ -155,6 +155,36 @@ report: not information nobody else has, information nobody can quietly
 edit afterward.
 </p>
 
+<h2>For people (card checkout)</h2>
+<p>
+The tools above sell to agents at machine prices on testnet rails. If you
+are a person with a website, there are two things you can buy with a card,
+paid via Stripe in real money:
+</p>
+<ul>
+<li>
+  <a href="https://buy.stripe.com/00w5kFe9O3SGcVl3Wd7ss00"><strong>Site
+  audit, signed report</strong></a> &mdash; $49, one time. All twelve
+  agent-legibility checks run against one site, each with status, detail,
+  and the fix for anything that fails, plus the dated Ed25519-signed
+  receipt. Delivered within two business days of receiving your site URL
+  (the checkout does not collect it; we ask right after purchase).
+</li>
+<li>
+  <a href="https://buy.stripe.com/7sY3cxd5K3SGcVlakB7ss01"><strong>Site
+  monitoring</strong></a> &mdash; $29/month, recurring. The same twelve
+  checks re-run weekly against one site, plus a report of what changed
+  since the last run. One site means one origin; cancel any time. Honest
+  note: the weekly run and the diff are currently done by hand, and we
+  are not claiming otherwise.
+</li>
+</ul>
+<p>
+Why $49 when an agent pays $0.25: the agent buys a JSON response. You buy
+the checks run, the failures explained in the order worth fixing, and a
+signed record you can show someone else.
+</p>
+
 <h2>Why pay for this</h2>
 <p>
 Not because the bytes are scarce. Because the answer does not exist until
@@ -204,14 +234,14 @@ exact fields and file references.
       "name": "drift_report",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "Every finding with file, line, diagnosis, and fix. Paid via MPP (card or stablecoin)."
+      "description": "Every finding with file, line, diagnosis, and fix. Paid via MPP (Tempo testnet)."
     },
     {
       "@type": "Offer",
       "name": "drift_report_x402",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "Same report as drift_report, paid via x402/USDC for x402 Bazaar discoverability."
+      "description": "Same report as drift_report, paid via x402/USDC (Base Sepolia testnet) for x402 Bazaar discoverability."
     },
     {
       "@type": "Offer",
@@ -225,14 +255,14 @@ exact fields and file references.
       "name": "model_status_batch",
       "price": "0.10",
       "priceCurrency": "USD",
-      "description": "One signed answer across all pinned models with an any_action_needed gate boolean. Paid via MPP."
+      "description": "One signed answer across all pinned models with an any_action_needed gate boolean. Paid via MPP (Tempo testnet)."
     },
     {
       "@type": "Offer",
       "name": "model_status_batch_x402",
       "price": "0.10",
       "priceCurrency": "USD",
-      "description": "Same batch answer as model_status_batch, paid via x402/USDC."
+      "description": "Same batch answer as model_status_batch, paid via x402/USDC (Base Sepolia testnet)."
     },
     {
       "@type": "Offer",
@@ -246,14 +276,14 @@ exact fields and file references.
       "name": "site_audit",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "All 12 agent-legibility checks with per-check status and detail, as a signed dated receipt. Paid via MPP (card or stablecoin)."
+      "description": "All 12 agent-legibility checks with per-check status and detail, as a signed dated receipt. Paid via MPP (Tempo testnet)."
     },
     {
       "@type": "Offer",
       "name": "site_audit_x402",
       "price": "0.25",
       "priceCurrency": "USD",
-      "description": "Same report as site_audit, paid via x402/USDC."
+      "description": "Same report as site_audit, paid via x402/USDC (Base Sepolia testnet)."
     }
   ]
 }
