@@ -156,6 +156,7 @@
     ]
   },
   "last_scan": {
+    "_note": "point-in-time snapshot from the moment this file was last generated; the course changes and these numbers rot. The live count is always the free drift_summary tool, which returns a signed receipt.",
     "repo": "710git/ai-agents-for-beginners",
     "commit": "3ccbaa9029aede34dbcd0933dd96cf23521703fa",
     "generated": "2026-08-27T15:45:14Z",

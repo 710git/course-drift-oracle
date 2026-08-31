@@ -46,6 +46,36 @@ The service is an MCP server over streamable HTTP:
 https://signetworks.atelieri.workers.dev/mcp
 ```
 
+Copy-paste quickstart, plain curl, no client library (every command
+here was run against production before being written down):
+
+```bash
+# 1. Initialize and capture the session id from the response headers.
+SESSION_ID=$(curl -si -X POST https://signetworks.atelieri.workers.dev/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"quickstart","version":"1.0"}}}' \
+  | tr -d '\r' | awk 'tolower($1)=="mcp-session-id:"{print $2}')
+
+# 2. Complete the handshake.
+curl -s -X POST https://signetworks.atelieri.workers.dev/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# 3. Call a free tool. Responses are SSE frames; strip the data: prefix.
+curl -s -X POST https://signetworks.atelieri.workers.dev/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"drift_summary","arguments":{}}}' \
+  | grep '^data:' | sed 's/^data: //'
+```
+
+The same pattern calls every tool in the table above; only the `name`
+and `arguments` change.
+
 Ten tools:
 
 | Tool | Price | Returns |
@@ -60,6 +90,15 @@ Ten tools:
 | `site_audit_summary` | free | agent-readiness score for a public site (12 checks): counts, target and date only; the per-check detail and signed receipt are the paid tier |
 | `site_audit` | $0.25 | all 12 checks with per-check status, detail and fix list as a signed dated receipt. Paid via MPP (Tempo testnet) |
 | `site_audit_x402` | $0.25 | the same full audit, paid via x402/USDC (Base Sepolia testnet) |
+
+The twelve audit checks, so you know what a score means before paying:
+`robots-exists`, `robots-ai-directives`, `robots-not-blanket`,
+`llmstxt-exists`, `llmstxt-shape`, `llmstxt-links`, `mcp-advert`,
+`structured-data`, `title-meta`, `charset`, `content-type-sanity`,
+`homepage-response`. Ten are scoreable; `homepage-response` and
+`robots-not-blanket` are informational readings by construction and
+never count for or against a site, which is why a flawless site scores
+10 of 10, not 12 of 12.
 
 A typical run:
 
@@ -131,6 +170,10 @@ the buyer per "Wiring a real x402 payer" in `clients/buyer/README.md`.
 
 ```
 oracle/     the scanner and the signing code
+            (to run it locally: clone the course repo it scans, then
+             python3 oracle/drift_scan.py --repo-root /path/to/ai-agents-for-beginners
+             with no course checkout, --offline runs the model-pin
+             checks only)
 worker/     the MCP server: four free tools, six paid tools, HTTP 402
 web/        the storefront pages served alongside the endpoint
 clients/    an independent buyer client - run it yourself before you pay
