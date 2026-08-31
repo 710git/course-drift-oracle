@@ -1,0 +1,54 @@
+# Publishes server.json to the official MCP registry at
+# registry.modelcontextprotocol.io.
+#
+# Manual only, on purpose. There is no push trigger: publishing is how this
+# server describes itself to every agent that discovers it, so it stays a
+# deliberate act someone chooses, not a side effect of editing a file. To
+# run it: Actions -> publish-registry -> Run workflow.
+#
+# Why this workflow exists at all. Publishing otherwise needs
+# `mcp-publisher login github`, which is an interactive GitHub device-code
+# flow and therefore needs a laptop, a browser and a local Go install. This
+# workflow authenticates as the repository itself using GitHub Actions OIDC,
+# which the registry accepts as proof of ownership of the
+# `io.github.710git/*` namespace. No personal access token is created and no
+# credential is stored anywhere.
+#
+# The `id-token: write` permission below is what makes that possible; without
+# it the OIDC token request fails and the publish step cannot authenticate.
+#
+# The validate step runs first and is not decoration: the registry enforces
+# limits the schema does not show, including a 100-character cap on
+# `description`, and a manifest that fails validation would otherwise fail
+# halfway through publishing.
+name: publish-registry
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      # Pinned rather than @latest so a publish is reproducible and an
+      # upstream change cannot alter what gets sent on an unattended re-run.
+      - name: Install mcp-publisher
+        run: go install github.com/modelcontextprotocol/registry/cmd/publisher@v1.8.1
+
+      - name: Validate server.json
+        run: $(go env GOPATH)/bin/publisher validate
+
+      - name: Authenticate to the registry via GitHub OIDC
+        run: $(go env GOPATH)/bin/publisher login github-oidc
+
+      - name: Publish
+        run: $(go env GOPATH)/bin/publisher publish
