@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 from publish import load_or_create_key
-from receipt import sign_receipt, utc_now, verify_receipt
+from receipt import b64url_nopad, sign_receipt, utc_now, verify_receipt
 
 SKILL_RECEIPT_TYPE = "course.skill.v1"
 
@@ -72,16 +72,28 @@ def main() -> int:
 
     payload = build_skill_payload(skill_path, repo_root)
 
+    # Resolved before the idempotence check because that check has to know
+    # who we are now, not merely that the old receipt is well formed.
+    key = load_or_create_key(Path(args.key_file))
+    current_public_key = b64url_nopad(bytes(key.verify_key))
+
     if receipt_path.exists():
         existing = json.loads(receipt_path.read_text())
+        existing_public_key = existing.get("signature", {}).get("public_key")
         if (
             existing.get("skill_sha256") == payload["skill_sha256"]
+            and existing_public_key == current_public_key
             and verify_receipt(existing)
         ):
             print(f"receipt current: {receipt_path} already signs {payload['skill_sha256']}")
             return 0
 
-    key = load_or_create_key(Path(args.key_file))
+    # verify_receipt alone would not have got us here after a key rotation:
+    # the public key travels inside the receipt, so a receipt signed by a
+    # retired key still verifies. Without the identity comparison above, the
+    # published skill would keep advertising the old key while the chain
+    # moved to the new one - a different identity claiming the same lineage,
+    # which is exactly what chain.v1.NOTE.md was written about.
     receipt = sign_receipt(payload, key)
 
     if not verify_receipt(receipt):

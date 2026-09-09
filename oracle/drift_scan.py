@@ -59,6 +59,9 @@ TRANSLATIONS_DIR = "translations"
 
 SCANNED_SUFFIXES = {".ipynb", ".py", ".md"}
 
+# Ordinal severity, low to high, for --fail-on comparisons.
+SEVERITY_ORDER = {"info": 0, "warning": 1, "critical": 2}
+
 # A model id only counts as a *pin* when something binds it: quotes, backticks,
 # or an env-var assignment. Bare prose ("we used gpt-4o for this") is a mention,
 # not a pin, and flagging it would bury the real findings. Three forms, because
@@ -88,6 +91,57 @@ def find_model_pins(line: str) -> list[str]:
                 seen.append(model_id)
     return seen
 
+
+# --------------------------------------------------------------------------
+# code-context detection
+#
+# find_model_pins() only tells you a line *looks like* a pin (quotes,
+# backticks, an env-var assignment). Whether that line actually counts is a
+# separate question, decided per file type:
+#
+#   .py          - every line is code.
+#   .ipynb       - only lines from a code cell; markdown cells are prose.
+#   .md          - only lines inside a fenced code block (``` or ~~~);
+#                  everything else, including an inline `backtick` aside in
+#                  a sentence, is prose.
+#
+# A "pin" outside a code context is just a mention - "we used gpt-4o for
+# this" wrapped in backticks doesn't bind anything to a deployment - so it
+# produces no finding at all, not even `info` for an unknown id.
+# --------------------------------------------------------------------------
+
+FENCE_PATTERN = re.compile(r"^\s*(`{3,}|~{3,})")
+
+
+def _markdown_code_context(lines: list[str]) -> set[int]:
+    """1-based line numbers inside a fenced code block (``` or ~~~).
+
+    Simplified CommonMark: a fence opens on a line of 3+ backticks or
+    tildes and closes on the next line using the *same* character (length
+    is not enforced - good enough for course markdown, not a full parser).
+    The fence delimiter lines themselves are not marked as code context;
+    they never contain a model id worth matching either way.
+    """
+    code_lines: set[int] = set()
+    in_fence = False
+    fence_char = None
+    for line_number, line in enumerate(lines, start=1):
+        match = FENCE_PATTERN.match(line)
+        if match:
+            char = match.group(1)[0]
+            if not in_fence:
+                in_fence = True
+                fence_char = char
+            elif char == fence_char:
+                in_fence = False
+                fence_char = None
+            elif in_fence:
+                code_lines.add(line_number)
+            continue
+        if in_fence:
+            code_lines.add(line_number)
+    return code_lines
+
 REQUIREMENT_PATTERN = re.compile(
     r"^\s*([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(>=|==|~=|>)\s*([0-9][A-Za-z0-9._-]*)"
 )
@@ -99,17 +153,50 @@ PYPI_URL = "https://pypi.org/pypi/{package}/json"
 # discovery
 # --------------------------------------------------------------------------
 
-def iter_source_files(repo_root: Path, include_translations: bool = False):
+def normalize_excludes(excludes) -> list[tuple[str, ...]]:
+    """Turn --exclude values into part-tuples for `is_excluded`.
+
+    A bare name ("mirror") stays a 1-tuple, matched against any single path
+    part - the same "excluded anywhere in the tree" semantics EXCLUDED_DIRS
+    already has. A repo-relative path ("agent-economy/oracle") becomes a
+    multi-part tuple, matched as a prefix from the repo root.
+    """
+    normalized = []
+    for raw in excludes or ():
+        parts = tuple(p for p in raw.strip().strip("/").split("/") if p)
+        if parts:
+            normalized.append(parts)
+    return normalized
+
+
+def is_excluded(parts: tuple[str, ...], extra_excludes: list[tuple[str, ...]]) -> bool:
+    """Whether a relative path's parts fall under EXCLUDED_DIRS or --exclude."""
+    if any(part in EXCLUDED_DIRS for part in parts):
+        return True
+    for ex_parts in extra_excludes:
+        if len(ex_parts) == 1:
+            if ex_parts[0] in parts:
+                return True
+        elif parts[: len(ex_parts)] == ex_parts:
+            return True
+    return False
+
+
+def iter_source_files(
+    repo_root: Path, include_translations: bool = False, exclude=()
+):
     """Yield lesson source files, skipping vendored trees.
 
     Translations are skipped unless `include_translations` is set, matching
-    the default (`en`-only) report.
+    the default (`en`-only) report. `exclude` (repeatable --exclude values)
+    is applied on top of the built-in EXCLUDED_DIRS.
     """
+    extra_excludes = normalize_excludes(exclude)
     for path in sorted(repo_root.rglob("*")):
         if path.suffix not in SCANNED_SUFFIXES or not path.is_file():
             continue
         parts = path.relative_to(repo_root).parts
-        if any(part in EXCLUDED_DIRS for part in parts):
+        if is_excluded(parts, extra_excludes):
             continue
         if not include_translations and TRANSLATIONS_DIR in parts:
             continue
@@ -123,34 +210,51 @@ def locale_for(parts: tuple[str, ...]) -> str:
     return "en"
 
 
-def notebook_text_lines(path: Path) -> list[str]:
+def notebook_text_lines(path: Path) -> tuple[list[str], set[int]]:
     """Flatten a notebook's source cells into lines.
 
     Notebook line numbers are reported against this flattened view rather than
     the raw .ipynb JSON, because "cell 4, line 3" is what a reader can act on
-    and the JSON line number is not.
+    and the JSON line number is not. Returns the flattened lines alongside the
+    1-based line numbers that came from a *code* cell - markdown cells are
+    prose, and the blank separator appended between cells belongs to neither.
     """
     try:
         notebook = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return []
+        return [], set()
     lines: list[str] = []
+    code_lines: set[int] = set()
     for cell in notebook.get("cells", []):
         source = cell.get("source", [])
         if isinstance(source, str):
             source = source.splitlines(keepends=True)
-        lines.extend("".join(source).splitlines())
+        is_code_cell = cell.get("cell_type") == "code"
+        for line in "".join(source).splitlines():
+            lines.append(line)
+            if is_code_cell:
+                code_lines.add(len(lines))
         lines.append("")
-    return lines
+    return lines, code_lines
 
 
-def file_lines(path: Path) -> list[str]:
+def file_lines(path: Path) -> tuple[list[str], set[int]]:
+    """Return (lines, code_line_numbers) for a source file.
+
+    `code_line_numbers` is the 1-based lines that count as a code context for
+    model-pin purposes: every line of a .py file, code-cell lines of a
+    .ipynb, and fenced-code-block lines of a .md.
+    """
     if path.suffix == ".ipynb":
         return notebook_text_lines(path)
     try:
-        return path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
-        return []
+        return [], set()
+    if path.suffix == ".md":
+        return lines, _markdown_code_context(lines)
+    # .py (and anything else SCANNED_SUFFIXES hands us): every line is code.
+    return lines, set(range(1, len(lines) + 1))
 
 
 # --------------------------------------------------------------------------
@@ -162,19 +266,30 @@ def load_catalog(catalog_path: Path) -> dict:
 
 
 def check_model_pins(
-    repo_root: Path, catalog: dict, include_translations: bool = False
+    repo_root: Path,
+    catalog: dict,
+    include_translations: bool = False,
+    exclude=(),
 ) -> tuple[list[dict], int]:
-    """Flag every quoted model id whose catalog status is not `current`."""
+    """Flag every quoted model id whose catalog status is not `current`.
+
+    Only lines in a code context count - see `file_lines`. A pin in prose
+    (markdown outside a fence, a notebook markdown cell) is a mention, not a
+    finding, whether or not the id is in the catalog.
+    """
     statuses = catalog.get("models", {})
     findings: list[dict] = []
     scanned = 0
 
-    for path in iter_source_files(repo_root, include_translations):
+    for path in iter_source_files(repo_root, include_translations, exclude):
         scanned += 1
         relative_path = path.relative_to(repo_root)
         relative = relative_path.as_posix()
         locale = locale_for(relative_path.parts) if include_translations else None
-        for line_number, line in enumerate(file_lines(path), start=1):
+        lines, code_lines = file_lines(path)
+        for line_number, line in enumerate(lines, start=1):
+            if line_number not in code_lines:
+                continue
             for model_id in find_model_pins(line):
                 entry = statuses.get(model_id)
                 if entry is None:
@@ -277,13 +392,15 @@ def check_package_pins(
     offline: bool,
     include_translations: bool = False,
     pypi: PypiLookup | None = None,
+    exclude=(),
 ) -> list[dict]:
     if pypi is None:
         pypi = PypiLookup()
+    extra_excludes = normalize_excludes(exclude)
     findings: list[dict] = []
     for requirements in sorted(repo_root.rglob("requirements.txt")):
         req_parts = requirements.relative_to(repo_root).parts
-        if any(part in EXCLUDED_DIRS for part in req_parts):
+        if is_excluded(req_parts, extra_excludes):
             continue
         if not include_translations and TRANSLATIONS_DIR in req_parts:
             continue
@@ -451,11 +568,13 @@ def scan(
     offline: bool,
     include_translations: bool = False,
     max_pypi: int | None = None,
+    exclude=(),
 ) -> dict:
     catalog = load_catalog(catalog_path)
-    model_findings, scanned = check_model_pins(repo_root, catalog, include_translations)
+    model_findings, scanned = check_model_pins(
+        repo_root, catalog, include_translations, exclude)
     package_findings = check_package_pins(
-        repo_root, offline, include_translations, PypiLookup(max_pypi))
+        repo_root, offline, include_translations, PypiLookup(max_pypi), exclude)
 
     findings = model_findings + package_findings
     # Stable ordering so the findings hash only changes when findings change,
@@ -495,6 +614,14 @@ def main() -> int:
                              "the per-package cache (default: 200)")
     parser.add_argument("--summary", action="store_true",
                         help="print a human summary instead of JSON")
+    parser.add_argument("--exclude", action="append", default=[], metavar="DIR",
+                        help="directory name or repo-relative path to skip, "
+                             "on top of the built-in exclusions; repeatable")
+    parser.add_argument("--fail-on", choices=list(SEVERITY_ORDER), default=None,
+                        metavar="LEVEL",
+                        help="exit 2 if any finding at or above this severity "
+                             "(info, warning, critical) exists; default: off, "
+                             "exit 0 regardless of findings")
     args = parser.parse_args()
 
     if args.repo_root is None:
@@ -504,7 +631,7 @@ def main() -> int:
         parser.error(f"{args.repo_root} does not look like a git checkout")
 
     result = scan(args.repo_root.resolve(), args.catalog, args.offline,
-                  args.include_translations, args.max_pypi)
+                  args.include_translations, args.max_pypi, args.exclude)
     args.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
     findings = result["findings"]
@@ -539,6 +666,11 @@ def main() -> int:
     else:
         print(json.dumps(result["meta"], indent=2))
         print(f"{len(findings)} finding(s) -> {args.out}")
+
+    if args.fail_on is not None:
+        threshold = SEVERITY_ORDER[args.fail_on]
+        if any(SEVERITY_ORDER.get(f["severity"], 0) >= threshold for f in findings):
+            return 2
     return 0
 
 

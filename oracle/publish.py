@@ -51,22 +51,26 @@ from receipt import (
 KEY_ENV = "ORACLE_SIGNING_KEY"
 
 
-def load_or_create_key(key_path: Path) -> signing.SigningKey:
-    """Resolve the signing key: env var first, then a local dev key file.
+def resolve_key(key_path: Path) -> tuple[signing.SigningKey, str]:
+    """Resolve the signing key and say where it came from.
 
+    Returns (key, source) with source one of "env", "file", "generated".
     The env var is the path that matters in production - a scheduled cloud run
     injects the secret and never writes it down. The file fallback exists so
     that cloning this repo and running it once actually works; it generates a
-    throwaway identity rather than failing with a setup error.
+    throwaway identity rather than failing with a setup error. The source is
+    returned because one decision downstream is custody-sensitive: starting a
+    fresh chain beside archived chains is a production identity change, and a
+    throwaway key must never make it (see refuse_fresh_chain_without_custody).
     """
     from_env = os.environ.get(KEY_ENV)
     if from_env:
         from receipt import b64url_decode
-        return signing.SigningKey(b64url_decode(from_env))
+        return signing.SigningKey(b64url_decode(from_env)), "env"
 
     if key_path.exists():
         from receipt import b64url_decode
-        return signing.SigningKey(b64url_decode(key_path.read_text().strip()))
+        return signing.SigningKey(b64url_decode(key_path.read_text().strip())), "file"
 
     key = signing.SigningKey.generate()
     key_path.write_text(b64url_nopad(bytes(key)) + "\n", encoding="utf-8")
@@ -77,7 +81,36 @@ def load_or_create_key(key_path: Path) -> signing.SigningKey:
         f"of git.",
         file=sys.stderr,
     )
-    return key
+    return key, "generated"
+
+
+def load_or_create_key(key_path: Path) -> signing.SigningKey:
+    """Back-compat wrapper for callers that do not need the key's provenance."""
+    return resolve_key(key_path)[0]
+
+
+def refuse_fresh_chain_without_custody(chain_path: Path, key_source: str) -> None:
+    """A fresh chain beside archived chains must be signed from the custody plane.
+
+    With the env secret unset (or empty, which is how GitHub Actions
+    renders a missing secret), the dev-key fallback silently generates a throwaway identity. A
+    throwaway matches no archive, so the retired-key guard below passes, and
+    the "reset" would start the new chain under a key that lives only in an
+    ephemeral runner - the exact write-only custody failure the reset exists
+    to close. Dev flows are untouched: with no archives beside the chain
+    there is no identity being reset, and the fallback still works.
+    """
+    if key_source == "env":
+        return
+    if not archived_chain_identities(chain_path):
+        return
+    sys.exit(
+        f"refusing to start a fresh chain beside archived chains with a "
+        f"{key_source} key: this is an identity reset, and the new identity "
+        f"must come from the {KEY_ENV} environment secret so it exists in the "
+        f"custody plane before it signs anything. {KEY_ENV} is unset or empty. "
+        f"Set it (see the key ceremony runbook) and re-run."
+    )
 
 
 def lesson_of(path: str) -> str:
@@ -163,6 +196,45 @@ def build_catalog_tier(entries: list[dict], catalog: dict, meta: dict, receipt: 
     }
 
 
+def archived_chain_identities(chain_path: Path) -> list[tuple[Path, str]]:
+    """The signing identity of each archived chain sitting beside the live one.
+
+    An identity reset leaves `chain.v1.jsonl`, `chain.v2.jsonl` and so on next
+    to `chain.jsonl`. Each archive's last entry names the key that signed it.
+    """
+    found: list[tuple[Path, str]] = []
+    for archive in sorted(chain_path.parent.glob(f"{chain_path.stem}.v*{chain_path.suffix}")):
+        lines = [l for l in archive.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not lines:
+            continue
+        public_key = json.loads(lines[-1]).get("signature", {}).get("public_key")
+        if public_key:
+            found.append((archive, public_key))
+    return found
+
+
+def refuse_reset_under_a_retired_key(chain_path: Path, key: signing.SigningKey) -> None:
+    """Stop a "reset" that resets nothing.
+
+    Archiving the live chain and starting a fresh one is how an identity reset
+    works, but the archive is necessarily written before the new key is in
+    place. A publish landing in that window would find no chain, silently open
+    a new one at sequence 0 under the SAME key, and throw away the sequence
+    history that was the only reason to keep the archive. Nothing downstream
+    would look wrong, which is what makes it worth failing loudly here.
+    """
+    current = b64url_nopad(bytes(key.verify_key))
+    for archive, retired in archived_chain_identities(chain_path):
+        if retired == current:
+            sys.exit(
+                f"refusing to start a fresh chain: {archive.name} was archived as a "
+                f"retired identity but is signed by the same key now in use "
+                f"({current}). Either the signing secret was never rotated, or this "
+                f"chain was archived by mistake. Rotate the key, or restore "
+                f"{archive.name} to {chain_path.name}."
+            )
+
+
 def main() -> int:
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
@@ -178,7 +250,7 @@ def main() -> int:
     findings, meta = scan["findings"], scan["meta"]
     catalog = json.loads(args.catalog.read_text(encoding="utf-8"))
 
-    key = load_or_create_key(args.key_file)
+    key, key_source = resolve_key(args.key_file)
 
     # Continue the existing chain rather than starting a new one, so the full
     # publication history stays verifiable as a single sequence.
@@ -189,6 +261,10 @@ def main() -> int:
             for line in args.chain.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+
+    if not history:
+        refuse_fresh_chain_without_custody(args.chain, key_source)
+        refuse_reset_under_a_retired_key(args.chain, key)
 
     receipt = build_report_receipt(
         findings=findings,

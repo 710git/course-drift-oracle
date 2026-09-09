@@ -540,12 +540,15 @@ export class DriftOracleMCP extends McpAgent<PaymentEnv> {
     this.server.tool(
       "site_audit_summary",
       "Free. Submit a site URL; the worker runs 12 agent-legibility checks " +
-        "against it (robots.txt AI-crawler directives, llms.txt, MCP " +
-        "advertisement, structured data, meta/charset/content-type sanity, " +
-        "no-JS response) with bounded fetches, private addresses refused, " +
-        "and a per-target rate limit. Returns how many of 12 passed, plus " +
-        "target and date - enough to decide whether the paid per-check " +
-        "detail is worth it.",
+        "against it, with bounded fetches, private addresses refused, and a " +
+        "per-target rate limit. The check ids: robots-exists, " +
+        "robots-ai-directives, robots-not-blanket, llmstxt-exists, " +
+        "llmstxt-shape, llmstxt-links, mcp-advert, structured-data, " +
+        "title-meta, charset, content-type-sanity, homepage-response. Ten " +
+        "are scoreable; homepage-response and robots-not-blanket are " +
+        "informational readings that never count for or against a site. " +
+        "Returns passes out of 10 scoreable, plus target and date - enough " +
+        "to decide whether the paid per-check detail is worth it.",
       auditSchema,
       async ({ url }) => {
         const result = await auditAndSign(this.env, url);

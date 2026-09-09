@@ -3,7 +3,7 @@
   "name": "io.github.710git/course-drift-oracle",
   "description": "Signed model-drift reports, model deprecation/retirement lookups, agent-readiness site audits.",
   "title": "Course Drift Oracle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://github.com/710git/course-drift-oracle",
   "repository": {
     "url": "https://github.com/710git/course-drift-oracle",

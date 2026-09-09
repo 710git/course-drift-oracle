@@ -115,6 +115,51 @@ A typical run:
    this is what proves you got everything you paid for, not a trimmed
    version of it.
 
+## Use it as a GitHub Action
+
+Add the scanner to a course repo's CI in one line:
+
+```yaml
+- uses: 710git/course-drift-oracle@v1
+```
+
+That is the whole add - every input below has a default.
+
+### Inputs
+
+| Input | Default | What it does |
+|---|---|---|
+| `path` | `.` | checkout-relative directory to scan |
+| `exclude` | `""` | directory names or repo-relative paths to skip, newline-separated, on top of the scanner's built-in exclusions |
+| `fail-on` | `critical` | fail the step if any finding at or above this severity exists (`info`, `warning`, `critical`); empty disables the gate |
+| `include-translations` | `false` | also scan `translations/<locale>/...` (default: the `en` tree only) |
+| `offline` | `true` | skip live PyPI lookups; check model pins against the bundled catalog only |
+
+### Outputs
+
+| Output | What it is |
+|---|---|
+| `critical-count` | number of critical-severity findings |
+| `warning-count` | number of warning-severity findings |
+| `info-count` | number of info-severity findings |
+| `findings-path` | path to the raw `findings.json` this run produced |
+
+### Why offline is the default
+
+PyPI lookups are a live-network dependency, and a one-line CI add should
+not force one on a stranger by default. With `offline: true` (the
+default), the Action only checks model pins against the catalog bundled
+in this repo - no outbound calls beyond the checkout itself. Set
+`offline: false` to also catch package version drift against the live
+PyPI JSON API.
+
+### What it never touches
+
+The Action never touches the Ed25519 signing key or the publication
+chain (`oracle/chain.jsonl`). It only reads the checkout it is given and
+the catalog bundled with the Action, and writes nothing back to the repo
+it runs in.
+
 ## Verifying a receipt yourself
 
 Every response carries a `receipt` object: a signed statement of what was

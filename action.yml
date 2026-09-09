@@ -1,0 +1,96 @@
+name: Course Drift Oracle scan
+description: >-
+  Scan a course repo for pinned facts that have drifted from upstream
+  reality: retired or deprecated model ids, and package requirements whose
+  open-floor pin has fallen behind what PyPI now resolves to. Offline by
+  default, so a one-line add never forces a live-network dependency on a
+  stranger's CI.
+author: 710git
+
+inputs:
+  path:
+    description: Checkout-relative directory to scan.
+    required: false
+    default: "."
+  exclude:
+    description: >-
+      Directory names or repo-relative paths to skip, on top of the
+      scanner's built-in exclusions. Newline-separated; one entry per line.
+    required: false
+    default: ""
+  fail-on:
+    description: >-
+      Fail the step if any finding at or above this severity exists (info,
+      warning, critical). Empty disables the gate: the scan step always
+      exits 0 regardless of findings.
+    required: false
+    default: "critical"
+  include-translations:
+    description: >-
+      Also scan translations/<locale>/... (default: the en tree only).
+    required: false
+    default: "false"
+  offline:
+    description: >-
+      Skip live PyPI lookups and only check model pins against the bundled
+      catalog. Defaults to true: PyPI lookups add a live-network dependency
+      to a stranger's CI that a one-line add should not force on them.
+    required: false
+    default: "true"
+
+outputs:
+  critical-count:
+    description: Number of critical-severity findings.
+    value: ${{ steps.report.outputs.critical-count }}
+  warning-count:
+    description: Number of warning-severity findings.
+    value: ${{ steps.report.outputs.warning-count }}
+  info-count:
+    description: Number of info-severity findings.
+    value: ${{ steps.report.outputs.info-count }}
+  findings-path:
+    description: Path to the raw findings.json this run produced.
+    value: ${{ steps.scan.outputs.findings-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Run drift scanner
+      id: scan
+      shell: bash
+      run: |
+        set -e
+        findings_path="$RUNNER_TEMP/findings.json"
+        args=(
+          --repo-root "${{ inputs.path }}"
+          --catalog "${{ github.action_path }}/oracle/model_catalog.json"
+          --out "$findings_path"
+        )
+        if [ "${{ inputs.offline }}" = "true" ]; then
+          args+=(--offline)
+        fi
+        if [ "${{ inputs.include-translations }}" = "true" ]; then
+          args+=(--include-translations)
+        fi
+        if [ -n "${{ inputs.fail-on }}" ]; then
+          args+=(--fail-on "${{ inputs.fail-on }}")
+        fi
+        while IFS= read -r dir; do
+          if [ -n "$dir" ]; then
+            args+=(--exclude "$dir")
+          fi
+        done <<< "${{ inputs.exclude }}"
+        echo "findings-path=$findings_path" >> "$GITHUB_OUTPUT"
+        python "${{ github.action_path }}/oracle/drift_scan.py" "${args[@]}"
+
+    - name: Report findings
+      id: report
+      if: always()
+      shell: bash
+      run: |
+        python "${{ github.action_path }}/oracle/action_report.py" \
+          --findings "${{ steps.scan.outputs.findings-path }}"
