@@ -876,13 +876,13 @@
       "status": "legacy"
     },
     "gpt-4.1-nano": {
-      "detail": "Azure Foundry lists gpt-4.1-nano version 2025-04-14 as Legacy with a retirement date of 2027-04-14.",
-      "earliest_retirement": "2027-04-14",
+      "detail": "Azure Foundry lists gpt-4.1-nano version 2025-04-14 as Legacy with a retirement date of 2026-10-14.",
+      "earliest_retirement": "2026-10-14",
       "lifecycle": "Legacy",
       "platform": "azure-openai-foundry",
-      "quote": "gpt-4.1-nano 2025-04-14 Legacy 2027-04-14 \u2014",
+      "quote": "gpt-4.1-nano 2025-04-14 Legacy 2026-10-14 \u2014",
       "replacement": null,
-      "retrieved": "2026-09-01",
+      "retrieved": "2026-09-16",
       "severity": "info",
       "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
       "status": "legacy"
@@ -1320,85 +1320,85 @@
       "status": "current"
     },
     "o1": {
-      "detail": "Azure Foundry lists o1 version 2024-12-17 as Deprecated with a retirement date of 2026-10-21. Microsoft's listed replacement is gpt-5.6-sol.",
-      "earliest_retirement": "2026-10-21",
+      "detail": "Azure Foundry lists o1 version 2024-12-17 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-sol.",
+      "earliest_retirement": "2026-11-19",
       "lifecycle": "Deprecated",
       "platform": "azure-openai-foundry",
-      "quote": "o1 2024-12-17 Deprecated 2026-10-21 gpt-5.6-sol",
+      "quote": "o1 2024-12-17 Deprecated 2026-11-19 gpt-5.6-sol",
       "replacement": "gpt-5.6-sol",
-      "retrieved": "2026-09-01",
+      "retrieved": "2026-09-16",
       "severity": "warning",
       "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
       "status": "deprecated"
     },
     "o1-pro": {
-      "detail": "Azure Foundry lists o1-pro version 2025-03-19 as GA, but with a retirement date already scheduled for 2026-10-21 and a listed replacement of gpt-5.6-sol - GA lifecycle here means still deployable today, not that no migration is coming.",
-      "earliest_retirement": "2026-10-21",
-      "lifecycle": "GA",
-      "platform": "azure-openai-foundry",
-      "quote": "o1-pro 2025-03-19 GA 2026-10-21 gpt-5.6-sol",
-      "replacement": "gpt-5.6-sol",
-      "retrieved": "2026-09-01",
-      "severity": "ok",
-      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
-      "status": "current"
-    },
-    "o3": {
-      "detail": "Azure Foundry lists o3 version 2025-04-16 as GA with a retirement date already scheduled for 2026-10-21 and a listed replacement of gpt-5.6-sol.",
-      "earliest_retirement": "2026-10-21",
-      "lifecycle": "GA",
-      "platform": "azure-openai-foundry",
-      "quote": "o3 2025-04-16 GA 2026-10-21 gpt-5.6-sol",
-      "replacement": "gpt-5.6-sol",
-      "retrieved": "2026-09-01",
-      "severity": "ok",
-      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
-      "status": "current"
-    },
-    "o3-deep-research": {
-      "detail": "Azure Foundry lists o3-deep-research version 2025-06-26 as GA with a retirement date of 2026-12-26. No replacement listed.",
-      "earliest_retirement": "2026-12-26",
-      "lifecycle": "GA",
-      "platform": "azure-openai-foundry",
-      "quote": "o3-deep-research 2025-06-26 GA 2026-12-26 \u2014",
-      "replacement": null,
-      "retrieved": "2026-09-01",
-      "severity": "ok",
-      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
-      "status": "current"
-    },
-    "o3-mini": {
-      "detail": "Azure Foundry's commercial-cloud retirement schedule lists o3-mini (version 2025-01-31) as Deprecated with a retirement date of 2026-10-01, replacement o4-mini. (A prior version of this entry cited the Azure Government schedule, which lists the same model and date but names gpt-5.1 as the replacement instead - the two clouds' schedules can diverge on replacement even when the retirement date matches. This entry now follows the commercial schedule, since that is what applies unless a deployment is confirmed to be on Azure Government.)",
-      "earliest_retirement": "2026-10-01",
+      "detail": "Azure Foundry lists o1-pro version 2025-03-19 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-sol.",
+      "earliest_retirement": "2026-11-19",
       "lifecycle": "Deprecated",
       "platform": "azure-openai-foundry",
-      "quote": "o3-mini 2025-01-31 Deprecated 2026-10-01 o4-mini",
-      "replacement": "o4-mini",
-      "retrieved": "2026-09-01",
+      "quote": "o1-pro 2025-03-19 Deprecated 2026-11-19 gpt-5.6-sol",
+      "replacement": "gpt-5.6-sol",
+      "retrieved": "2026-09-16",
+      "severity": "warning",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "status": "deprecated"
+    },
+    "o3": {
+      "detail": "Azure Foundry lists o3 version 2025-04-16 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-sol.",
+      "earliest_retirement": "2026-11-19",
+      "lifecycle": "Deprecated",
+      "platform": "azure-openai-foundry",
+      "quote": "o3 2025-04-16 Deprecated 2026-11-19 gpt-5.6-sol",
+      "replacement": "gpt-5.6-sol",
+      "retrieved": "2026-09-16",
+      "severity": "warning",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "status": "deprecated"
+    },
+    "o3-deep-research": {
+      "detail": "Azure Foundry lists o3-deep-research version 2025-06-26 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-sol.",
+      "earliest_retirement": "2026-11-19",
+      "lifecycle": "Deprecated",
+      "platform": "azure-openai-foundry",
+      "quote": "o3-deep-research 2025-06-26 Deprecated 2026-11-19 gpt-5.6-sol",
+      "replacement": "gpt-5.6-sol",
+      "retrieved": "2026-09-16",
+      "severity": "warning",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "status": "deprecated"
+    },
+    "o3-mini": {
+      "detail": "Azure Foundry lists o3-mini version 2025-01-31 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-terra.",
+      "earliest_retirement": "2026-11-19",
+      "lifecycle": "Deprecated",
+      "platform": "azure-openai-foundry",
+      "quote": "o3-mini 2025-01-31 Deprecated 2026-11-19 gpt-5.6-terra",
+      "replacement": "gpt-5.6-terra",
+      "retrieved": "2026-09-16",
       "severity": "warning",
       "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
       "status": "deprecated"
     },
     "o3-pro": {
-      "detail": "Azure Foundry lists o3-pro version 2025-06-10 as GA with a retirement date of 2026-12-17. No replacement listed.",
-      "earliest_retirement": "2026-12-17",
-      "lifecycle": "GA",
-      "platform": "azure-openai-foundry",
-      "quote": "o3-pro 2025-06-10 GA 2026-12-17 \u2014",
-      "replacement": null,
-      "retrieved": "2026-09-01",
-      "severity": "ok",
-      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
-      "status": "current"
-    },
-    "o4-mini": {
-      "detail": "Azure Foundry lists o4-mini version 2025-04-16 as Deprecated with a retirement date of 2026-10-16. No replacement listed (o4-mini is itself the listed replacement for the retiring o3-mini).",
-      "earliest_retirement": "2026-10-16",
+      "detail": "Azure Foundry lists o3-pro version 2025-06-10 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-sol.",
+      "earliest_retirement": "2026-11-19",
       "lifecycle": "Deprecated",
       "platform": "azure-openai-foundry",
-      "quote": "o4-mini 2025-04-16 Deprecated 2026-10-16 \u2014",
-      "replacement": null,
-      "retrieved": "2026-09-01",
+      "quote": "o3-pro 2025-06-10 Deprecated 2026-11-19 gpt-5.6-sol",
+      "replacement": "gpt-5.6-sol",
+      "retrieved": "2026-09-16",
+      "severity": "warning",
+      "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
+      "status": "deprecated"
+    },
+    "o4-mini": {
+      "detail": "Azure Foundry lists o4-mini version 2025-04-16 as Deprecated with a retirement date of 2026-11-19. Microsoft's listed replacement is gpt-5.6-terra.",
+      "earliest_retirement": "2026-11-19",
+      "lifecycle": "Deprecated",
+      "platform": "azure-openai-foundry",
+      "quote": "o4-mini 2025-04-16 Deprecated 2026-11-19 gpt-5.6-terra",
+      "replacement": "gpt-5.6-terra",
+      "retrieved": "2026-09-16",
       "severity": "warning",
       "source": "https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule",
       "status": "deprecated"
@@ -1536,5 +1536,5 @@
       "status": "current"
     }
   },
-  "version": "2026-09-06"
+  "version": "2026-09-16"
 }
